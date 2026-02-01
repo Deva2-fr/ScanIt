@@ -16,11 +16,9 @@ def main():
     """Start the FastAPI server"""
     settings = get_settings()
     
-    print("""
-    ╔═══════════════════════════════════════════╗
-    ║     🔍 SiteAuditor Backend Server         ║
-    ╚═══════════════════════════════════════════╝
-    """)
+    print("=" * 50)
+    print("   SiteAuditor Backend Server")
+    print("=" * 50)
     
     uvicorn.run(
         "app.main:app",

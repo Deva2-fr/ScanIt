@@ -22,7 +22,10 @@ if sys.platform == "win32":
         pass
 
 from .config import get_settings
-from .api import analyze_router
+from .api import analyze_router, users_router, admin_router
+from .api.auth import router as auth_router
+from .api.audit import router as audit_router
+from .database import create_db_and_tables
 
 # Configure logging
 logging.basicConfig(
@@ -40,15 +43,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown"""
     # Startup
-    print("🚀 SiteAuditor Backend starting...")
+    print("[*] SiteAuditor Backend starting...")
     settings = get_settings()
-    print(f"📍 Running on http://{settings.api_host}:{settings.api_port}")
-    print(f"🔧 Debug mode: {settings.debug}")
+    print(f"[*] Running on http://{settings.api_host}:{settings.api_port}")
+    print(f"[*] Debug mode: {settings.debug}")
+    
+    # Initialize database
+    create_db_and_tables()
     
     yield
     
     # Shutdown
-    print("👋 SiteAuditor Backend shutting down...")
+    print("[*] SiteAuditor Backend shutting down...")
 
 
 # Create FastAPI application
@@ -86,23 +92,41 @@ app = FastAPI(
 
 # CORS Configuration
 settings = get_settings()
+
+# In debug mode, allow all origins to make development easier
+if settings.debug:
+    allowed_origins = ["*"]
+    logger.info("🔓 CORS: Allowing all origins (debug mode)")
+else:
+    allowed_origins = settings.cors_origins_list
+    logger.info(f"🔒 CORS: Allowing origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
 # Request timing middleware
 @app.middleware("http")
 async def add_timing_header(request: Request, call_next):
-    """Add response timing header"""
+    """Add response timing header and log requests"""
+    # Log incoming requests in debug mode
+    if settings.debug:
+        logger.info(f"📥 {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+    
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(round(process_time, 3))
+    
+    if settings.debug:
+        logger.info(f"📤 {request.method} {request.url.path} -> {response.status_code} ({process_time:.3f}s)")
+    
     return response
 
 
@@ -121,6 +145,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include API routes
 app.include_router(analyze_router)
+app.include_router(auth_router)
+app.include_router(audit_router)
+app.include_router(users_router)
+app.include_router(admin_router)
 
 
 # Root endpoint
