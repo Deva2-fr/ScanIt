@@ -147,7 +147,7 @@ export default function LeadsPage() {
                                                 <TableRow className="border-zinc-800 hover:bg-transparent">
                                                     <TableHead className="text-zinc-400">Email</TableHead>
                                                     <TableHead className="text-zinc-400">Site Web</TableHead>
-                                                    <TableHead className="text-zinc-400 text-center">Score</TableHead>
+                                                    <TableHead className="text-zinc-400 text-center">Score Sécurité</TableHead>
                                                     <TableHead className="text-zinc-400 text-right">Date</TableHead>
                                                 </TableRow>
                                             </TableHeader>

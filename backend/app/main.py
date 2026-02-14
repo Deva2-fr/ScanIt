@@ -26,11 +26,17 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
     shutdown_scheduler()
 
-from .api import auth, analyze, audit, billing, monitors, ai, api_keys
+from .api import auth, analyze, audit, billing, monitors, ai, api_keys, leads, widget, users
+from fastapi.staticfiles import StaticFiles
+import os
 
 app = FastAPI(title="SiteAuditor API", lifespan=lifespan, redirect_slashes=False)
 
 settings = get_settings()
+
+# Mount Static Files for Uploads
+os.makedirs("static/uploads", exist_ok=True)
+app.mount("/api/static", StaticFiles(directory="static"), name="static")
 
 if settings.cors_origins:
     app.add_middleware(
@@ -52,12 +58,15 @@ async def internal_exception_handler(request: Request, exc: Exception):
     )
 
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(analyze.router)
 app.include_router(audit.router)
 app.include_router(billing.router)
 app.include_router(monitors.router)
 app.include_router(ai.router)
 app.include_router(api_keys.router)
+app.include_router(leads.router, prefix="/api/leads", tags=["leads"])
+app.include_router(widget.router, prefix="/api/widget", tags=["widget"])
 
 @app.get("/")
 def read_root():

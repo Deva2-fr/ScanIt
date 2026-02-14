@@ -18,7 +18,7 @@ from sqlmodel import Session
 
 # ── Local ──
 from ..database import get_session, engine
-from ..deps import get_current_user
+from ..deps import get_current_user, get_current_user_optional
 from ..models.user import User
 from ..core.permissions import FeatureGuard
 from ..models import AnalyzeRequest, AnalyzeResponse, TaskResponse
@@ -43,23 +43,25 @@ router = APIRouter(prefix="/api", tags=["Analysis"])
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_url(
     request: AnalyzeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     session: Session = Depends(get_session),
 ) -> AnalyzeResponse:
-    if not FeatureGuard.check_scan_quota(current_user):
-        raise HTTPException(
-            status_code=403,
-            detail="Daily scan quota reached. Upgrade your plan for more.",
-        )
-    # Increment scan counter
-    today = date.today()
-    if current_user.last_scan_date != today:
-        current_user.scans_count_today = 1
-        current_user.last_scan_date = today
-    else:
-        current_user.scans_count_today += 1
-    session.add(current_user)
-    session.commit()
+    if current_user:
+        if not FeatureGuard.check_scan_quota(current_user):
+            raise HTTPException(
+                status_code=403,
+                detail="Daily scan quota reached. Upgrade your plan for more.",
+            )
+        # Increment scan counter
+        today = date.today()
+        if current_user.last_scan_date != today:
+            current_user.scans_count_today = 1
+            current_user.last_scan_date = today
+        else:
+            current_user.scans_count_today += 1
+        session.add(current_user)
+        session.commit()
+
     url = request.url
     if not validators.url(url):
         raise HTTPException(
@@ -83,11 +85,12 @@ async def analyze_url(
         # Run in parallel
         results = await asyncio.gather(*tasks)
         
-        main_response = results[0]
+        # process_url returns (AnalyzeResponse, screenshot_bytes)
+        main_response = results[0][0]
         
         # Attach competitor result if present
         if len(results) > 1:
-            competitor_response = results[1]
+            competitor_response = results[1][0]
             main_response.competitor = competitor_response
             
             # Enable Versus Mode

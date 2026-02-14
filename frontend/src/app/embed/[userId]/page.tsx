@@ -82,6 +82,7 @@ export default function WidgetPage() {
                         {result.score}
                     </span>
                 </div>
+                <div className="text-sm font-semibold text-gray-500 mb-4">Score de Sécurité</div>
 
                 <h2 className="text-xl font-bold mb-2 text-gray-800">
                     {result.score >= 80 ? "Excellent Score !" : "Attention requise"}

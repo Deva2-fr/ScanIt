@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     
+    # Timeouts
+    request_timeout: float = 10.0
+    ssl_timeout: float = 5.0
+    
     # CORS
     cors_origins: str = "*"
 
