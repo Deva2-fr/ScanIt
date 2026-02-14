@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from '@/contexts/AuthContext'
 import { ExternalLink, Calendar, Search, Trash2 } from 'lucide-react'
 import { ScoreHistoryChart } from './charts/ScoreHistoryChart'
+import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 
 interface Scan {
@@ -27,7 +28,7 @@ export function ScanHistory() {
 
         const fetchHistory = async () => {
             try {
-                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
                 const token = localStorage.getItem('access_token')
 
                 const response = await fetch(`${API_BASE_URL}/api/audits/`, {
@@ -57,7 +58,7 @@ export function ScanHistory() {
         if (!confirm("Êtes-vous sûr de vouloir supprimer ce scan ?")) return;
 
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const token = localStorage.getItem('access_token')
 
             const response = await fetch(`${API_BASE_URL}/api/audits/${id}`, {
@@ -79,7 +80,7 @@ export function ScanHistory() {
         if (!confirm("ATTENTION : Cela supprimera TOUT votre historique d'audit. Cette action est irréversible. Êtes-vous sûr ?")) return;
 
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const token = localStorage.getItem('access_token')
 
             const response = await fetch(`${API_BASE_URL}/api/audits/`, {
@@ -176,11 +177,15 @@ export function ScanHistory() {
                                 >
                                     <div className="space-y-1">
                                         <div className="flex items-center gap-2 font-medium">
+                                            <Link href={`/dashboard/report/${scan.id}`} className="hover:underline flex items-center gap-1.5 font-semibold text-primary">
+                                                Audit #{scan.id}
+                                            </Link>
+                                            <span className="text-muted-foreground mx-1">•</span>
                                             <a
                                                 href={scan.url}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="hover:underline flex items-center gap-1.5"
+                                                className="hover:underline flex items-center gap-1.5 text-muted-foreground text-sm"
                                             >
                                                 {new URL(scan.url).hostname}
                                                 <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -201,27 +206,39 @@ export function ScanHistory() {
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2">
                                             {/* Attempt to parse summary to show other scores */}
+
                                             {(() => {
                                                 try {
                                                     const summary = scan.summary ? JSON.parse(scan.summary) : {};
+
+                                                    const getScore = (data: any) => {
+                                                        if (typeof data === 'number') return data;
+                                                        if (data && typeof data === 'object' && typeof data.score === 'number') return data.score;
+                                                        return 0;
+                                                    };
+
+                                                    const seoScore = getScore(summary.seo);
+                                                    const secuScore = getScore(summary.security);
+                                                    const perfScore = getScore(summary.performance);
+
                                                     return (
                                                         <>
                                                             {summary.seo && (
                                                                 <div className="hidden sm:flex flex-col items-center px-2">
                                                                     <span className="text-[10px] uppercase text-muted-foreground font-semibold">SEO</span>
-                                                                    <span className={`text-xs font-bold ${getScoreColor(summary.seo).split(' ')[1]}`}>{summary.seo > 100 ? Math.round(summary.seo / 100) : summary.seo}</span>
+                                                                    <span className={`text-xs font-bold ${getScoreColor(seoScore).split(' ')[1]}`}>{seoScore > 100 ? Math.round(seoScore / 100) : seoScore}</span>
                                                                 </div>
                                                             )}
                                                             {summary.security && (
                                                                 <div className="hidden sm:flex flex-col items-center px-2 border-l border-muted">
                                                                     <span className="text-[10px] uppercase text-muted-foreground font-semibold">Secu</span>
-                                                                    <span className={`text-xs font-bold ${getScoreColor(summary.security).split(' ')[1]}`}>{summary.security > 100 ? Math.round(summary.security / 100) : summary.security}</span>
+                                                                    <span className={`text-xs font-bold ${getScoreColor(secuScore).split(' ')[1]}`}>{secuScore > 100 ? Math.round(secuScore / 100) : secuScore}</span>
                                                                 </div>
                                                             )}
                                                             {summary.performance && (
                                                                 <div className="hidden sm:flex flex-col items-center px-2 border-l border-muted mr-2">
                                                                     <span className="text-[10px] uppercase text-muted-foreground font-semibold">Perf</span>
-                                                                    <span className={`text-xs font-bold ${getScoreColor(summary.performance).split(' ')[1]}`}>{summary.performance > 100 ? Math.round(summary.performance / 100) : summary.performance}</span>
+                                                                    <span className={`text-xs font-bold ${getScoreColor(perfScore).split(' ')[1]}`}>{perfScore > 100 ? Math.round(perfScore / 100) : perfScore}</span>
                                                                 </div>
                                                             )}
                                                         </>

@@ -68,7 +68,7 @@ function VerifyContent() {
 
         setLoading(true)
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const response = await fetch(`${API_BASE_URL}/api/auth/verify-email`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -93,7 +93,7 @@ function VerifyContent() {
         if (!email) return
         setResending(true)
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             await fetch(`${API_BASE_URL}/api/auth/resend-code`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

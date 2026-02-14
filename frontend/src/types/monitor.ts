@@ -5,7 +5,8 @@ export interface Monitor {
     frequency: 'daily' | 'weekly';
     is_active: boolean;
     last_score?: number;
-    threshold: number;
+    alert_threshold: number;
+    check_hour: number;
     created_at: string;
     last_checked_at?: string;
 }
@@ -13,5 +14,6 @@ export interface Monitor {
 export interface MonitorCreate {
     url: string;
     frequency: 'daily' | 'weekly';
-    threshold: number;
+    alert_threshold: number;
+    check_hour: number;
 }

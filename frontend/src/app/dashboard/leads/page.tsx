@@ -34,7 +34,7 @@ export default function LeadsPage() {
             if (!user) return
             try {
                 const token = localStorage.getItem('access_token')
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/api/leads/`, {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/leads/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 })
                 if (res.ok) {

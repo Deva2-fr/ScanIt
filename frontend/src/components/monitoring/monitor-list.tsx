@@ -30,7 +30,7 @@ export function MonitorList({ keyProp }: MonitorListProps) {
         if (!isAuthenticated) return
         try {
             const token = localStorage.getItem('access_token')
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/monitors/`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/monitors/`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (response.ok) {
@@ -52,7 +52,7 @@ export function MonitorList({ keyProp }: MonitorListProps) {
         if (!confirm("Are you sure you want to stop monitoring this site?")) return
         try {
             const token = localStorage.getItem('access_token')
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/monitors/${id}`, {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/monitors/${id}`, {
                 method: "DELETE",
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -69,7 +69,7 @@ export function MonitorList({ keyProp }: MonitorListProps) {
 
         try {
             const token = localStorage.getItem('access_token')
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/monitors/${id}`, {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/monitors/${id}`, {
                 method: "PATCH",
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -106,8 +106,8 @@ export function MonitorList({ keyProp }: MonitorListProps) {
                         <TableHead>URL</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last Score</TableHead>
-                        <TableHead>Threshold</TableHead>
-                        <TableHead>Last Checked</TableHead>
+                        <TableHead>Alert Sensitivity</TableHead>
+                        <TableHead>Next Check</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -138,12 +138,20 @@ export function MonitorList({ keyProp }: MonitorListProps) {
                                 )}
                             </TableCell>
                             <TableCell>
-                                <span className="text-sm text-muted-foreground">&lt; {monitor.threshold}</span>
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                    <Activity className="h-3 w-3" />
+                                    Drop &gt; {monitor.alert_threshold}
+                                </span>
                             </TableCell>
                             <TableCell>
-                                <span className="text-xs text-muted-foreground">
-                                    {monitor.last_checked_at ? new Date(monitor.last_checked_at).toLocaleDateString() : "Never"}
-                                </span>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-muted-foreground">
+                                        Last: {monitor.last_checked_at ? new Date(monitor.last_checked_at).toLocaleDateString() : "Never"}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground/60">
+                                        Preferred: {monitor.check_hour}:00 UTC
+                                    </span>
+                                </div>
                             </TableCell>
                             <TableCell className="text-right">
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(monitor.id)}>

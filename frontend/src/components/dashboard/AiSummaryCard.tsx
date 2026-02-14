@@ -30,9 +30,13 @@ export function AiSummaryCard({ data }: AiSummaryCardProps) {
             setIsLoading(true)
             setError(null)
             try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/ai/summary`, {
+                const token = localStorage.getItem('access_token')
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/ai/summary`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    },
                     body: JSON.stringify({ scan_results: data })
                 })
 
@@ -76,7 +80,7 @@ export function AiSummaryCard({ data }: AiSummaryCardProps) {
         }
     }, [summary])
 
-    if (!summary && !isLoading) return null
+    if (!summary && !isLoading && !error) return null
 
     return (
         <motion.div

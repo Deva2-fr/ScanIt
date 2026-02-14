@@ -71,8 +71,8 @@ export default function Home() {
     setSteps(getInitialSteps().map((s) => ({ ...s, status: "pending" })));
 
     try {
-      // Use Streaming Hook
-      const data = await analyzeUrlStream(url, language);
+      // Use Streaming Hook - PASS COMPETITOR URL
+      const data = await analyzeUrlStream(url, language, competitorUrl);
 
       // Save to history if authenticated
       if (isAuthenticated) {

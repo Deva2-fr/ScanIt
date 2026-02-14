@@ -249,6 +249,18 @@ export function TechStackSection({ data, className }: TechStackSectionProps) {
                                 {data.outdated_count} outdated
                             </Badge>
                         )}
+
+                        <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Tech Score</span>
+                            <div className={cn(
+                                "text-2xl font-black",
+                                data.score >= 90 ? "text-emerald-500" :
+                                    data.score >= 70 ? "text-amber-500" :
+                                        "text-red-500"
+                            )}>
+                                {data.score}%
+                            </div>
+                        </div>
                     </div>
                 </CardHeader>
 

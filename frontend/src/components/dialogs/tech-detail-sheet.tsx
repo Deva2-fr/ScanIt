@@ -92,6 +92,16 @@ const getTechRisks = (tech: Technology): { risk: string; severity: SeverityLevel
         risks.push(...techRisks[tech.name]);
     }
 
+    // 3. REAL VULNERABILITIES from backend (if available)
+    if (tech.vulnerabilities && tech.vulnerabilities.length > 0) {
+        tech.vulnerabilities.forEach(v => {
+            risks.push({
+                risk: `[${v.cve}] ${v.desc}`,
+                severity: (v.severity.toLowerCase() as SeverityLevel) || "high"
+            });
+        });
+    }
+
     return risks;
 };
 

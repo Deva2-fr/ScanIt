@@ -79,9 +79,13 @@ export function SecurityDetailDialog({ open, onOpenChange, type, data }: Securit
         setIsFixing(true);
         setFixError(null);
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/ai/fix`, {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/ai/fix`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                },
                 body: JSON.stringify({
                     issue_type: "missing_security_header",
                     context: {

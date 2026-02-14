@@ -27,7 +27,7 @@ export function useAnalyze() {
 }
 
 // --- Hook for Saving History (Mutation) ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 export function useSaveScan() {
     const queryClient = useQueryClient();

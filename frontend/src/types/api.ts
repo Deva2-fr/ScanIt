@@ -124,6 +124,11 @@ export interface Technology {
         description: string;
         severity: SeverityLevel;
     }>;
+    vulnerabilities?: Array<{
+        cve: string;
+        desc: string;
+        severity: string;
+    }>;
 }
 
 export interface CompanyInfo {
@@ -155,6 +160,7 @@ export interface TechStackResult {
     cdn: string | null;
     analytics: string[];
     outdated_count: number;
+    score: number;
     error: string | null;
 }
 
@@ -277,6 +283,8 @@ export interface AnalyzeResponse {
     green_it: GreenResult;
     dns_health: DNSHealthResult;
     competitor?: AnalyzeResponse;
+    versus_mode?: boolean;
+    winner?: "target" | "competitor" | "draw";
     scan_duration_seconds: number | null;
     errors: string[];
 }

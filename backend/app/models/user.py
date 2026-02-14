@@ -2,7 +2,7 @@
 User Model - SQLModel ORM
 Defines the User table structure for authentication
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from sqlmodel import Field, SQLModel
 
@@ -19,6 +19,22 @@ class User(SQLModel, table=True):
     is_verified: bool = Field(default=False)
     verification_code: Optional[str] = Field(default=None, max_length=6)
     is_superuser: bool = Field(default=False)
+    
+    # White Label Branding
+    agency_name: Optional[str] = Field(default=None, max_length=255)
+    brand_color: str = Field(default="#7c3aed", max_length=7)  # Default violet
+    logo_url: Optional[str] = Field(default=None, max_length=512)
+
+    # Billing / Mock System
+    stripe_customer_id: Optional[str] = Field(default=None, index=True)
+    stripe_subscription_id: Optional[str] = Field(default=None)
+    plan_tier: str = Field(default="starter") # starter, pro, agency
+    subscription_active: bool = Field(default=True)
+    subscription_status: str = Field(default="active")  # active, past_due, canceled, trialing
+    subscription_end_date: Optional[datetime] = Field(default=None)
+    scans_count_today: int = Field(default=0)
+    last_scan_date: Optional[date] = Field(default=None)
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default=None, sa_column_kwargs={"onupdate": datetime.utcnow})
     
@@ -29,7 +45,9 @@ class User(SQLModel, table=True):
                 "email": "user@example.com",
                 "full_name": "John Doe",
                 "is_active": True,
-                "is_superuser": False
+                "is_superuser": False,
+                "agency_name": "My Agency",
+                "brand_color": "#ff0000"
             }
         }
 
@@ -39,6 +57,7 @@ class UserCreate(SQLModel):
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=100)
     full_name: Optional[str] = Field(default=None, max_length=255)
+    agency_name: Optional[str] = Field(default=None, max_length=255)
     
     class Config:
         json_schema_extra = {
@@ -80,6 +99,20 @@ class UserRead(SQLModel):
     full_name: Optional[str]
     is_active: bool
     is_superuser: bool
+    
+    # White Label
+    agency_name: Optional[str]
+    brand_color: str
+    logo_url: Optional[str]
+
+    # Billing
+    plan_tier: str = "starter"
+    subscription_active: bool = True
+    subscription_status: str = "active"
+    subscription_end_date: Optional[datetime] = None
+    scans_count_today: int = 0
+    last_scan_date: Optional[date] = None
+
     created_at: datetime
     
     class Config:
@@ -89,7 +122,8 @@ class UserRead(SQLModel):
                 "email": "user@example.com",
                 "full_name": "John Doe",
                 "is_active": True,
-                "created_at": "2026-01-31T15:00:00"
+                "created_at": "2026-01-31T15:00:00",
+                "brand_color": "#7c3aed"
             }
         }
 
@@ -98,6 +132,9 @@ class UserUpdate(SQLModel):
     """Schema for updating user profile"""
     email: Optional[str] = Field(default=None, min_length=3, max_length=255)
     full_name: Optional[str] = Field(default=None, max_length=255)
+    agency_name: Optional[str] = Field(default=None, max_length=255)
+    brand_color: Optional[str] = Field(default=None, max_length=7)
+    logo_url: Optional[str] = Field(default=None, max_length=512)
 
 
 class PasswordChange(SQLModel):

@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from ..database import get_session
 from ..models.user import User
 from ..api.auth import get_current_user
+from ..deps import requires_agency_plan
 from ..models.api_key import ApiKey
 from ..services.api_keys import create_api_key
 
@@ -37,7 +38,7 @@ class ApiKeyCreateResponse(BaseModel):
 @router.get("/", response_model=List[ApiKeyRead])
 async def list_api_keys(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(requires_agency_plan),
 ):
     """List all active API keys for the current user"""
     statement = select(ApiKey).where(ApiKey.user_id == current_user.id, ApiKey.is_active == True)
@@ -48,7 +49,7 @@ async def list_api_keys(
 async def create_new_api_key(
     request: ApiKeyCreateRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(requires_agency_plan),
 ):
     """Generate a new API Key. The raw key is returned only once."""
     db_obj, raw_key = create_api_key(session, current_user.id, request.name)
@@ -65,7 +66,7 @@ async def create_new_api_key(
 async def revoke_api_key(
     key_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(requires_agency_plan),
 ):
     """Revoke (delete) an API Key"""
     key = session.get(ApiKey, key_id)

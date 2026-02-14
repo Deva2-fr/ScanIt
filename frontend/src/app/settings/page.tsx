@@ -65,7 +65,7 @@ function ProfileForm() {
 
     const onSubmit = async (data: ProfileFormValues) => {
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const token = localStorage.getItem('access_token')
 
             const response = await fetch(`${API_BASE_URL}/api/users/me`, {
@@ -167,7 +167,7 @@ function PasswordForm() {
 
     const onSubmit = async (data: PasswordFormValues) => {
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const token = localStorage.getItem('access_token')
 
             const response = await fetch(`${API_BASE_URL}/api/users/me/password`, {

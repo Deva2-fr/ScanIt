@@ -32,7 +32,7 @@ export default function WidgetPage() {
         setError("")
 
         try {
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
             const res = await fetch(`${API_BASE_URL}/api/widget/scan`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

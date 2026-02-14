@@ -1,49 +1,59 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel 
-from app.services.ai_advisor import generate_executive_summary, AiSummaryResponse
-# from app.api.analyze import last_analysis_result # Removed unused import
-# Ideally we should fetch from DB, but for now let's assume we pass the result or fetch last
-# For this implementation, let's accept the analysis result in the body OR fetch from a cache.
-# To keep it STATELESS and simple for now, the frontend will send the analysis JSON back (or ID).
-# BETTER: The frontend sends the analysis ID, but we don't have a DB for ad-hoc scans yet.
-# SO: We will accept the scan result as body (filtered by frontend?) OR just full body.
-# Given payload size, it's better if Frontend sends the full JSON, and Backend minimizes it.
+"""
+AI Endpoints
+Routes for AI-powered summary and fix generation.
+"""
+import logging
+from typing import Dict, Any
 
-router = APIRouter()
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 
-class GenerateSummaryRequest(BaseModel):
-    scan_results: dict
+from ..deps import get_current_user
+from ..models.user import User
+from ..services.ai_advisor import generate_executive_summary, AiSummaryResponse
+from ..services.ai_fixer import generate_fix
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/ai", tags=["AI"])
+
+
+# ── Request Schemas ──
+
+class AiSummaryRequest(BaseModel):
+    scan_results: Dict[str, Any]
+
+
+class AiFixRequest(BaseModel):
+    issue_type: str
+    context: Dict[str, Any] = {}
+
+
+# ── Routes ──
 
 @router.post("/summary", response_model=AiSummaryResponse)
-async def get_ai_summary(request: GenerateSummaryRequest):
-    """
-    Generates an AI Executive Summary based on the provided scan results.
-    """
-    if not request.scan_results:
-        raise HTTPException(status_code=400, detail="Scan results are required")
-        
-    return await generate_executive_summary(request.scan_results)
+async def ai_summary(
+    request: AiSummaryRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an AI executive summary from scan results."""
+    try:
+        result = await generate_executive_summary(request.scan_results)
+        return result
+    except Exception as e:
+        logger.error(f"AI Summary endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"AI summary generation failed: {str(e)}")
 
-
-class FixRequest(BaseModel):
-    issue_type: str
-    context: dict
 
 @router.post("/fix")
-async def get_fix(request: FixRequest):
-    """
-    On-demand code generation to fix a specific issue.
-    Returns a structured guide with steps, commands, and validation.
-    """
-    from app.services.ai_fixer import generate_fix
-    
-    if not request.issue_type:
-        raise HTTPException(status_code=400, detail="Issue type is required")
-        
-    result = await generate_fix(request.issue_type, request.context)
-    
-    # Check for errors in the response
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result.get("error"))
-        
-    return result
+async def ai_fix(
+    request: AiFixRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an AI-powered fix guide for a specific issue."""
+    try:
+        result = await generate_fix(request.issue_type, request.context)
+        return result
+    except Exception as e:
+        logger.error(f"AI Fix endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"AI fix generation failed: {str(e)}")

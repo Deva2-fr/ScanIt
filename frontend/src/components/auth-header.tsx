@@ -13,7 +13,16 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, LogOut, Settings, Shield, History, LayoutDashboard } from 'lucide-react'
+import {
+    User,
+    LogOut,
+    Settings,
+    Shield,
+    History,
+    LayoutDashboard,
+    Palette,
+    CreditCard
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export function AuthHeader() {
@@ -132,6 +141,19 @@ export function AuthHeader() {
                                         <span>Settings</span>
                                     </Link>
                                 </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href="/dashboard/settings/branding" className="cursor-pointer">
+                                        <Palette className="mr-2 h-4 w-4 text-violet-500" />
+                                        <span>Branding (White Label)</span>
+                                    </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href="/dashboard/subscription" className="cursor-pointer">
+                                        <CreditCard className="mr-2 h-4 w-4 text-green-500" />
+                                        <span>Subscription</span>
+                                    </Link>
+                                </DropdownMenuItem>
+
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     onClick={handleLogout}

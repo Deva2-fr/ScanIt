@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from ..database import get_session
 from ..models.user import User
 from ..api.auth import get_current_user
+from ..deps import requires_agency_plan
 from ..models.lead import Lead
 from datetime import datetime
 from pydantic import BaseModel
@@ -21,7 +22,7 @@ class LeadRead(BaseModel):
 @router.get("/", response_model=List[LeadRead])
 async def get_agency_leads(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(requires_agency_plan),
 ):
     """
     Get all leads captured by the current user's widget.

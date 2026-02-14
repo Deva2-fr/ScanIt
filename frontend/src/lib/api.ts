@@ -3,7 +3,7 @@
  */
 import { AnalyzeRequest, AnalyzeResponse } from "@/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 class ApiError extends Error {
     constructor(public status: number, message: string) {
@@ -22,17 +22,23 @@ const MAX_ATTEMPTS = 60; // 2 minutes timeout
 /**
  * Start an async analysis and poll for results
  */
+function getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return headers;
+}
+
 export async function analyzeUrl(url: string, lang: string = "en", competitorUrl?: string): Promise<AnalyzeResponse> {
     const request: AnalyzeRequest = {
         url,
         lang,
         ...(competitorUrl && { competitor_url: competitorUrl })
     };
-
-    // 1. Start Background Task
+    const headers = getAuthHeaders();
     const startResponse = await fetch(`${API_BASE_URL}/api/analyze/async`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(request),
     });
 
@@ -51,7 +57,9 @@ export async function analyzeUrl(url: string, lang: string = "en", competitorUrl
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         await new Promise(r => setTimeout(r, POLL_INTERVAL));
 
-        const taskResponse = await fetch(`${API_BASE_URL}/api/tasks/${task_id}`);
+        const taskResponse = await fetch(`${API_BASE_URL}/api/tasks/${task_id}`, {
+            headers: getAuthHeaders(),
+        });
 
         if (!taskResponse.ok) continue; // Retry on transient network errors
 
@@ -77,7 +85,7 @@ export async function analyzeUrl(url: string, lang: string = "en", competitorUrl
 async function analyzeUrlSync(request: AnalyzeRequest): Promise<AnalyzeResponse> {
     const response = await fetch(`${API_BASE_URL}/api/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(request),
     });
 
@@ -99,6 +107,54 @@ export async function healthCheck(): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+/**
+ * Create a Stripe Checkout Session
+ */
+export async function createCheckoutSession(priceId: string, token: string): Promise<{ url: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/billing/checkout?price_id=${priceId}`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Checkout failed" }));
+        throw new ApiError(response.status, error.detail);
+    }
+
+    return response.json();
+}
+
+/**
+ * Create a Stripe Customer Portal Session
+ */
+export async function createPortalSession(token: string): Promise<{ url: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/billing/portal`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Portal failed" }));
+        throw new ApiError(response.status, error.detail);
+    }
+
+    return response.json();
+}
+
+// Subscription Simulation
+export async function simulateUpgrade(plan: "pro" | "agency", token: string): Promise<any> {
+    const priceId = plan === "agency" ? "price_agency_monthly" : "price_pro_monthly";
+    return createCheckoutSession(priceId, token);
+}
+
+export async function cancelSubscription(token: string): Promise<any> {
+    return createCheckoutSession("free", token);
 }
 
 export { ApiError };

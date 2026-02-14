@@ -87,8 +87,11 @@ export function ScoreHistoryChart({ data }: ScoreHistoryChartProps) {
                 if (metric !== 'global' && scan.summary) {
                     try {
                         const summary = JSON.parse(scan.summary);
-                        if (summary[metric] !== undefined) {
-                            value = summary[metric];
+                        const val = summary[metric];
+                        if (typeof val === 'number') {
+                            value = val;
+                        } else if (val && typeof val === 'object' && typeof val.score === 'number') {
+                            value = val.score;
                         }
                     } catch (e) {
                         // ignore parse error

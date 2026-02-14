@@ -36,14 +36,14 @@ import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
 import { Plus, Loader2 } from "lucide-react"
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
+
 const formSchema = z.object({
-    url: z.string().transform((val) => {
-        // Remove protocol and www (dot or slash)
-        const cleaned = val.replace(/^(?:https?:\/\/)?(?:www[./])?/, "").replace(/\/$/, "").trim();
-        return `https://${cleaned}`;
-    }).pipe(z.string().url("Please enter a valid URL")),
+    url: z.string().url("Please enter a valid URL (https://...)"),
     frequency: z.enum(["daily", "weekly"]),
-    threshold: z.coerce.number().min(0).max(100),
+    alert_threshold: z.coerce.number().min(1).max(100),
+    check_hour: z.coerce.number().min(0).max(23),
+    check_day: z.coerce.number().min(0).max(6).optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -61,13 +61,12 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
         defaultValues: {
             url: "",
             frequency: "daily" as const,
-            threshold: 80,
+            alert_threshold: 10,
+            check_hour: 9,
         },
     })
 
     const onSubmit: SubmitHandler<FormValues> = async (values) => {
-        console.log("Submitting form with values:", values)
-
         if (!isAuthenticated) {
             toast.error("You must be logged in to create a monitor")
             return
@@ -75,7 +74,7 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
 
         try {
             const token = localStorage.getItem('access_token')
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/monitors/`, {
+            const response = await fetch(`${API_BASE}/api/monitors/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -85,8 +84,9 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
             })
 
             if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.detail || "Failed to create monitor")
+                const errBody = await response.json().catch(() => ({}))
+                const msg = Array.isArray(errBody.detail) ? errBody.detail.map((e: any) => e.msg || e).join(", ") : (errBody.detail || "Failed to create monitor")
+                throw new Error(msg)
             }
 
             toast.success("Watchdog activated for " + values.url)
@@ -95,7 +95,7 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
             onSuccess()
         } catch (error) {
             console.error(error)
-            toast.error("Error creating monitor")
+            toast.error(error instanceof Error ? error.message : "Error creating monitor")
         }
     }
 
@@ -111,7 +111,7 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
                 <DialogHeader>
                     <DialogTitle>Add Watchdog Monitor</DialogTitle>
                     <DialogDescription>
-                        We will scan this URL automatically and alert you if the score drops.
+                        On scanne cette URL automatiquement et on t’alerte si le score baisse. La limite dépend de ton abonnement ; en passant Pro ou Agency tu peux en créer plus.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -132,52 +132,98 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
                                         <Input
                                             placeholder="example.com"
                                             {...field}
-                                            onBlur={(e) => {
-                                                const cleaned = e.target.value
-                                                    .replace(/^(?:https?:\/\/)?(?:www[./])?/, "")
-                                                    .replace(/\/$/, "")
-                                                    .trim();
-                                                field.onChange(cleaned);
-                                                field.onBlur();
-                                            }}
                                         />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
+                        <FormField
+                            control={form.control}
+                            name="check_hour"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Preferred Check Time (UTC)</FormLabel>
+                                    <Select onValueChange={(val) => field.onChange(parseInt(val))} defaultValue={field.value.toString()}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select hour" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent className="max-h-[200px]">
+                                            {Array.from({ length: 24 }).map((_, i) => (
+                                                <SelectItem key={i} value={i.toString()}>
+                                                    {i.toString().padStart(2, '0')}:00
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="frequency"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Frequency</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select frequency" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="daily">Daily</SelectItem>
-                                                <SelectItem value="weekly">Weekly</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="frequency"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Frequency</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select frequency" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="daily">Daily</SelectItem>
+                                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                {form.watch("frequency") === "weekly" && (
+                                    <FormField
+                                        control={form.control}
+                                        name="check_day"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>On which day?</FormLabel>
+                                                <Select onValueChange={(val) => field.onChange(parseInt(val))} defaultValue={field.value?.toString() || "0"}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select day" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="0">Monday</SelectItem>
+                                                        <SelectItem value="1">Tuesday</SelectItem>
+                                                        <SelectItem value="2">Wednesday</SelectItem>
+                                                        <SelectItem value="3">Thursday</SelectItem>
+                                                        <SelectItem value="4">Friday</SelectItem>
+                                                        <SelectItem value="5">Saturday</SelectItem>
+                                                        <SelectItem value="6">Sunday</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                 )}
-                            />
+                            </div>
                             <FormField
                                 control={form.control}
-                                name="threshold"
+                                name="alert_threshold"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Score Threshold</FormLabel>
+                                        <FormLabel>Alert Sensitivity (Score Drop)</FormLabel>
                                         <FormControl>
                                             <Input type="number" {...field} />
                                         </FormControl>
-                                        <FormDescription>Alert if below {field.value}</FormDescription>
+                                        <FormDescription>Alert if score drops by {field.value} points</FormDescription>
                                         <FormMessage />
                                     </FormItem>
                                 )}

@@ -1,0 +1,64 @@
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+backend/venv/
+
+# ========================
+# Node / Next.js
+# ========================
+node_modules/
+.next/
+out/
+frontend/node_modules/
+frontend/.next/
+
+# ========================
+# IDE
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ========================
+# OS files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Logs & Debug
+# ========================
+*.log
+backend.log
+backend_error.log
+stderr.txt
+full_error.txt
+
+# ========================
+# Test artifacts
+# ========================
+test_*.py
+reproduce_issue.py
+verify_json_error.py

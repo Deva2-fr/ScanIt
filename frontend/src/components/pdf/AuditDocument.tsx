@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Link } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Link, Image } from '@react-pdf/renderer';
 import { AnalyzeResponse, SeverityLevel } from '../../types/api';
 
 // --- STYLES SYSTEM ---
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     h3: {
         fontSize: 11,
         fontFamily: 'Helvetica-Bold',
-        color: colors.text, // Fixed: 'text-dark' is not a valid color key in our object
+        color: colors.text,
         marginTop: 8,
         marginBottom: 4,
         textDecoration: 'underline',
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    rowBetween: { // Fixed: Defined 'rowBetween' which was used but missing
+    rowBetween: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     tableRow: {
         flexDirection: "row",
         borderBottomWidth: 1,
-        borderBottomColor: colors.border, // Fixed: Use color constant
+        borderBottomColor: colors.border,
         paddingVertical: 6,
         minHeight: 25,
         alignItems: 'center',
@@ -210,12 +210,12 @@ const getScoreColor = (score: number) => {
     return colors.danger;
 };
 
-const getSeverityColor = (severity: string) => {
+const getSeverityColor = (severity: string, primaryColor: string = colors.primary) => {
     switch (severity?.toLowerCase()) {
         case 'critical': return colors.danger;
         case 'high': return '#ea580c'; // Orange-600
         case 'medium': return colors.warning;
-        case 'low': return colors.primary;
+        case 'low': return primaryColor;
         default: return colors.success;
     }
 };
@@ -249,8 +249,8 @@ const StatusBadge = ({ value, trueLabel = "OUI", falseLabel = "NON", inverse = f
     )
 };
 
-const SeverityLabel = ({ level }: { level: string }) => (
-    <View style={[styles.badge, { backgroundColor: getSeverityColor(level) }]}>
+const SeverityLabel = ({ level, color }: { level: string, color?: string }) => (
+    <View style={[styles.badge, { backgroundColor: getSeverityColor(level, color) }]}>
         <Text>{level.toUpperCase()}</Text>
     </View>
 );
@@ -265,10 +265,15 @@ const ProgressBar = ({ percent }: { percent: number }) => (
 
 interface AuditDocumentProps {
     data: AnalyzeResponse;
+    brandColor?: string;
+    logoUrl?: string; // Optional URL for custom logo
+    agencyName?: string; // Optional agency name
 }
 
-const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
+const AuditDocument: React.FC<AuditDocumentProps> = ({ data, brandColor, logoUrl, agencyName }) => {
     const globalScore = formatScore(data.global_score);
+    // Use the provided brandColor or fallback to default primary color
+    const primary = brandColor || colors.primary;
 
     // Aggregate social links from contacts
     const socialLinks = data.tech_stack.contacts ? [
@@ -277,6 +282,14 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
         ...(data.tech_stack.contacts.facebook || [])
     ] : [];
 
+    // Footer text logic
+    const footerTextElement = ({ pageNumber, totalPages }: any) => {
+        const text = agencyName
+            ? `Rapport généré par ${agencyName} - Page ${pageNumber} / ${totalPages}`
+            : `Page ${pageNumber} / ${totalPages} - SiteAuditor Confidential`;
+        return text;
+    };
+
     return (
         <Document>
 
@@ -284,18 +297,34 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
             <Page size="A4" style={styles.page}>
                 {/* Brand Header */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 60 }}>
-                    {/* Logo placeholder */}
-                    <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: colors.primary, marginRight: 10, alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 16 }}>S</Text>
-                    </View>
-                    <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.secondary }}>SiteAuditor</Text>
+                    {logoUrl ? (
+                        // Custom Logo
+                        <Image
+                            src={logoUrl}
+                            style={{
+                                height: 60,
+                                objectFit: 'contain',
+                                marginRight: 15,
+                                // Ensure image isn't too wide if aspect ratio is wide
+                                maxWidth: 200
+                            }}
+                        />
+                    ) : (
+                        // Default Logo
+                        <React.Fragment>
+                            <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: primary, marginRight: 10, alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 16 }}>S</Text>
+                            </View>
+                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.secondary }}>SiteAuditor</Text>
+                        </React.Fragment>
+                    )}
                 </View>
 
                 {/* Title Section */}
                 <View style={{ marginBottom: 40 }}>
                     <Text style={styles.subtitle}>RAPPORT D'AUDIT TECHNIQUE COMPLET</Text>
                     <Text style={styles.title}>{new URL(data.url).hostname}</Text>
-                    <Text style={{ fontSize: 12, color: colors.primary, marginTop: 5 }}>{data.url}</Text>
+                    <Text style={{ fontSize: 12, color: primary, marginTop: 5 }}>{data.url}</Text>
                 </View>
 
                 {/* Global Score Gauge */}
@@ -340,7 +369,8 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
 
             {/* --- PAGE 2: EXECUTIVE SUMMARY --- */}
             <Page size="A4" style={styles.page}>
-                <Text style={styles.h1}>Tableau de Bord Exécutif</Text>
+                {/* Dynamic H1 border color */}
+                <Text style={[styles.h1, { borderBottomColor: primary }]}>Tableau de Bord Exécutif</Text>
 
                 {/* Critical Issues Summary */}
                 <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: colors.danger, backgroundColor: '#fef2f2' }]}>
@@ -395,7 +425,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                 ].slice(0, 8).map((issue: any, i) => (
                     <View key={i} style={[styles.row, { marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
                         <View style={{ width: 80 }}>
-                            <SeverityLabel level={issue.severity || 'medium'} />
+                            <SeverityLabel level={issue.severity || 'medium'} color={primary} />
                         </View>
                         <View style={{ width: 80 }}>
                             <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: colors.textLight }}>{issue.type}</Text>
@@ -406,12 +436,12 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 ))}
 
-                <Text style={styles.footer} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages} - SiteAuditor Confidential`} fixed />
+                <Text style={styles.footer} render={footerTextElement} fixed />
             </Page>
 
             {/* --- PAGE 3: SECURITY DEEP DIVE --- */}
             <Page size="A4" style={styles.page}>
-                <Text style={styles.h1}>Analyse de Sécurité Complète</Text>
+                <Text style={[styles.h1, { borderBottomColor: primary }]}>Analyse de Sécurité Complète</Text>
 
                 <View style={styles.grid2}>
                     <View style={styles.col2}>
@@ -457,7 +487,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                         <View key={i} style={styles.tableRow}>
                             <View style={[styles.cell, { flex: 2 }]}><Text style={styles.bold}>{h.name}</Text></View>
                             <View style={[styles.cell, { flex: 1 }]}>
-                                {h.present ? <StatusBadge value={true} trueLabel="OK" /> : <SeverityLabel level={h.severity} />}
+                                {h.present ? <StatusBadge value={true} trueLabel="OK" /> : <SeverityLabel level={h.severity} color={primary} />}
                             </View>
                             <View style={[styles.cell, { flex: 4 }]}>
                                 <Text style={{ fontSize: 8 }}>{h.present ? 'Configuration correcte' : (h.description || 'Manquant')}</Text>
@@ -466,13 +496,14 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     ))}
                 </View>
 
+                {/* Rest of Page 3 Content... (Same structure) */}
                 <Text style={styles.h2}>Vulnérabilités Détectées</Text>
                 {data.security.vulnerabilities.length > 0 ? (
                     data.security.vulnerabilities.map((v: any, i) => (
                         <View key={i} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: colors.danger }]}>
                             <View style={styles.rowBetween}>
                                 <Text style={styles.cardTitle}>{v.title || 'Faille de sécurité'}</Text>
-                                <SeverityLabel level={v.severity || 'high'} />
+                                <SeverityLabel level={v.severity || 'high'} color={primary} />
                             </View>
                             <Text style={styles.text}>{v.description}</Text>
                             {v.remediation && (
@@ -488,12 +519,12 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 )}
 
-                <Text style={styles.footer} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} fixed />
+                <Text style={styles.footer} render={footerTextElement} fixed />
             </Page>
 
             {/* --- PAGE 4: PERFORMANCE & SEO --- */}
             <Page size="A4" style={styles.page}>
-                <Text style={styles.h1}>Performance & Expérience Utilisateur</Text>
+                <Text style={[styles.h1, { borderBottomColor: primary }]}>Performance & Expérience Utilisateur</Text>
 
                 {/* Core Web Vitals Section */}
                 <Text style={styles.h2}>Core Web Vitals (Signaux Web Essentiels)</Text>
@@ -501,7 +532,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     <View style={styles.col3}>
                         <View style={[styles.card, { alignItems: 'center' }]}>
                             <Text style={[styles.cardTitle, { fontSize: 14 }]}>LCP</Text>
-                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.primary }}>
+                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: primary }}>
                                 {data.seo.core_web_vitals.lcp ? `${(data.seo.core_web_vitals.lcp / 1000).toFixed(2)}s` : '-'}
                             </Text>
                             <Text style={styles.small}>Chargement</Text>
@@ -510,7 +541,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     <View style={styles.col3}>
                         <View style={[styles.card, { alignItems: 'center' }]}>
                             <Text style={[styles.cardTitle, { fontSize: 14 }]}>CLS</Text>
-                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.primary }}>
+                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: primary }}>
                                 {data.seo.core_web_vitals.cls || '0'}
                             </Text>
                             <Text style={styles.small}>Stabilité</Text>
@@ -519,7 +550,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     <View style={styles.col3}>
                         <View style={[styles.card, { alignItems: 'center' }]}>
                             <Text style={[styles.cardTitle, { fontSize: 14 }]}>FID/INP</Text>
-                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: colors.primary }}>
+                            <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: primary }}>
                                 {data.seo.core_web_vitals.inp || data.seo.core_web_vitals.fid || '-'} ms
                             </Text>
                             <Text style={styles.small}>Interactivité</Text>
@@ -527,8 +558,10 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 </View>
 
+                {/* Metrics Table */}
                 <Text style={styles.h2}>Toutes les Métriques de Vitesse</Text>
                 <View style={styles.table}>
+                    {/* ... (Same table structure) ... */}
                     <View style={styles.tableHeader}>
                         <View style={[styles.cell, { flex: 2 }]}><Text style={styles.bold}>METRIQUE</Text></View>
                         <View style={[styles.cell, { flex: 1.5 }]}><Text style={styles.bold}>VALEUR</Text></View>
@@ -563,15 +596,14 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 ))}
 
-                <Text style={styles.footer} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} fixed />
+                <Text style={styles.footer} render={footerTextElement} fixed />
             </Page>
 
-            {/* --- PAGE 5: TECH STACK & INFRASTRUCTURE --- */}
+            {/* --- PAGE 5: TECH STACK --- */}
             <Page size="A4" style={styles.page}>
-                <Text style={styles.h1}>Infrastructure & Stack Technique</Text>
+                <Text style={[styles.h1, { borderBottomColor: primary }]}>Infrastructure & Stack Technique</Text>
 
                 {/* Company & Contacts Info */}
-                {/* Only show if data exists to avoid empty blocks */}
                 {(data.tech_stack.company?.name || (data.tech_stack.contacts && Object.values(data.tech_stack.contacts).some(arr => arr.length > 0))) && (
                     <View style={styles.section}>
                         <Text style={styles.h2}>Informations Entreprise Détectées</Text>
@@ -606,6 +638,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     ))}
                 </View>
 
+                {/* DNS Health */}
                 <Text style={styles.h2}>Santé DNS & Email</Text>
                 <View style={styles.table}>
                     <View style={styles.tableRow}>
@@ -634,12 +667,12 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 </View>
 
-                <Text style={styles.footer} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} fixed />
+                <Text style={styles.footer} render={footerTextElement} fixed />
             </Page>
 
-            {/* --- PAGE 6: COMPLIANCE & QUALITY --- */}
+            {/* --- PAGE 6: COMPLIANCE --- */}
             <Page size="A4" style={styles.page}>
-                <Text style={styles.h1}>Conformité, Qualité & Green IT</Text>
+                <Text style={[styles.h1, { borderBottomColor: primary }]}>Conformité, Qualité & Green IT</Text>
 
                 <View style={styles.grid2}>
                     <View style={styles.col2}>
@@ -673,6 +706,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 </View>
 
+                {/* Cookies */}
                 <Text style={styles.h2}>Analyse des Cookies ({data.gdpr.cookies.length})</Text>
                 {data.gdpr.cookies.length > 0 ? (
                     <View style={styles.table}>
@@ -686,7 +720,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                                 <View style={[styles.cell, { flex: 2 }]}><Text>{c.name.substring(0, 20)}</Text></View>
                                 <View style={[styles.cell, { flex: 2 }]}><Text style={styles.small}>{c.domain}</Text></View>
                                 <View style={[styles.cell, { flex: 1.5 }]}>
-                                    <SeverityLabel level={c.risk_level} />
+                                    <SeverityLabel level={c.risk_level} color={primary} />
                                 </View>
                             </View>
                         ))}
@@ -695,6 +729,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     <Text style={[styles.small, { fontStyle: 'italic', marginBottom: 15 }]}>Aucun cookie détecté avant consentement.</Text>
                 )}
 
+                {/* Broken Links */}
                 <Text style={styles.h2}>Liens Brisés (Top 10)</Text>
                 <View style={{ marginBottom: 15 }}>
                     {data.broken_links.broken_links.length > 0 ? (
@@ -723,7 +758,7 @@ const AuditDocument: React.FC<AuditDocumentProps> = ({ data }) => {
                     </View>
                 </View>
 
-                <Text style={styles.footer} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} fixed />
+                <Text style={styles.footer} render={footerTextElement} fixed />
             </Page>
 
         </Document>

@@ -2,51 +2,55 @@
 Analysis Endpoint
 Main API route for URL analysis
 """
+# ── Standard Library ──
 import asyncio
+import logging
 import time
-import validators
+import uuid
 from datetime import datetime
 from typing import Optional
+
+# ── Third-Party ──
+import validators
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
-from ..database import get_session
+from sqlmodel import Session
 
-from ..models import AnalyzeRequest, AnalyzeResponse, AuditStatus
+# ── Local ──
+from ..database import get_session, engine
+from ..deps import get_current_user
+from ..models.user import User
+from ..core.permissions import FeatureGuard
+from ..models import AnalyzeRequest, AnalyzeResponse, TaskResponse
+from ..models.task import ScanTask, AuditStatus
 from ..services import (
     SEOAnalyzer,
-    SecurityAnalyzer, 
+    SecurityAnalyzer,
     TechStackAnalyzer,
     BrokenLinksAnalyzer,
     GDPRAnalyzer,
     SMOAnalyzer,
     GreenITAnalyzer,
-    DNSAnalyzer
+    DNSAnalyzer,
 )
-from ..models import TaskResponse
-from ..models.task import ScanTask, AuditStatus
-from ..database import engine
-from sqlmodel import Session
-import uuid
-import logging
+from ..services.scanner import process_url
 
 logger = logging.getLogger(__name__)
-
 
 router = APIRouter(prefix="/api", tags=["Analysis"])
 
 
-from ..services.scanner import process_url
-
-
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_url(request: AnalyzeRequest) -> AnalyzeResponse:
-    """
-    Analyze a URL for SEO, Security, Technology Stack, and Broken Links.
-    If competitor_url is provided, analyzes both in parallel.
-    """
+async def analyze_url(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+) -> AnalyzeResponse:
+    if not FeatureGuard.check_scan_quota(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Daily scan quota reached. Upgrade your plan for more.",
+        )
     url = request.url
-    
-    # Validate URLs
     if not validators.url(url):
         raise HTTPException(
             status_code=400,
@@ -73,7 +77,24 @@ async def analyze_url(request: AnalyzeRequest) -> AnalyzeResponse:
         
         # Attach competitor result if present
         if len(results) > 1:
-            main_response.competitor = results[1]
+            competitor_response = results[1]
+            main_response.competitor = competitor_response
+            
+            # Enable Versus Mode
+            main_response.versus_mode = True
+            
+            # Calculate Winner
+            main_score = main_response.global_score
+            competitor_score = competitor_response.global_score
+            
+            if main_score > competitor_score:
+                main_response.winner = "target"
+            elif main_score < competitor_score:
+                main_response.winner = "competitor"
+            else:
+                main_response.winner = "draw"
+            
+            logger.info(f"🏆 Battle Mode: {main_response.url} ({main_score}) vs {competitor_response.url} ({competitor_score}) - Winner: {main_response.winner}")
             
         return main_response
         
@@ -87,12 +108,16 @@ async def analyze_url(request: AnalyzeRequest) -> AnalyzeResponse:
 from ..services.scanner import process_url_stream
 
 @router.get("/stream")
-async def analyze_stream(url: str, lang: str = "en"):
-    """
-    Stream analysis progress and results in real-time.
-    Uses NDJSON format (Newline Delimited JSON).
-    """
-    # Normalize URL if schema is missing
+async def analyze_stream(
+    url: str,
+    lang: str = "en",
+    current_user: User = Depends(get_current_user),
+):
+    if not FeatureGuard.check_scan_quota(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Daily scan quota reached. Upgrade your plan for more.",
+        )
     url = url.strip()
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
@@ -147,18 +172,17 @@ async def process_scan_background(task_id: str, url: str, lang: str):
 
 @router.post("/analyze/async", response_model=TaskResponse)
 async def analyze_url_async(
-    request: AnalyzeRequest, 
+    request: AnalyzeRequest,
     background_tasks: BackgroundTasks,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Start an asynchronous URL analysis.
-    Returns a Task ID immediately.
-    Client should poll /api/tasks/{task_id} for results.
-    """
+    if not FeatureGuard.check_scan_quota(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Daily scan quota reached. Upgrade your plan for more.",
+        )
     url = request.url
-    
-    # Validate URL
     if not validators.url(url):
         raise HTTPException(status_code=400, detail=f"Invalid URL: {url}")
 
@@ -189,7 +213,10 @@ async def health_check():
 
 
 @router.post("/analyze/seo")
-async def analyze_seo_only(request: AnalyzeRequest):
+async def analyze_seo_only(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Analyze only SEO and Performance"""
     url = request.url
     
@@ -202,7 +229,10 @@ async def analyze_seo_only(request: AnalyzeRequest):
 
 
 @router.post("/analyze/security")
-async def analyze_security_only(request: AnalyzeRequest):
+async def analyze_security_only(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Analyze only Security"""
     url = request.url
     
@@ -215,7 +245,10 @@ async def analyze_security_only(request: AnalyzeRequest):
 
 
 @router.post("/analyze/tech")
-async def analyze_tech_only(request: AnalyzeRequest):
+async def analyze_tech_only(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Analyze only Technology Stack"""
     url = request.url
     
@@ -228,7 +261,10 @@ async def analyze_tech_only(request: AnalyzeRequest):
 
 
 @router.post("/analyze/links")
-async def analyze_links_only(request: AnalyzeRequest):
+async def analyze_links_only(
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Analyze only Broken Links"""
     url = request.url
     
@@ -238,3 +274,4 @@ async def analyze_links_only(request: AnalyzeRequest):
     analyzer = BrokenLinksAnalyzer()
     result = await analyzer.analyze(url)
     return result
+

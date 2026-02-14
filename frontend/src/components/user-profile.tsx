@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { LogOut, User, Mail, Calendar, ShieldCheck } from 'lucide-react'
+import { LogOut, User, Mail, Calendar, ShieldCheck, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 
 export function UserProfile() {
@@ -136,6 +136,27 @@ export function UserProfile() {
                                 >
                                     {user.is_active ? 'Active' : 'Inactive'}
                                 </Badge>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-md">
+                            <CreditCard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">Current Plan</p>
+                                    <p className="font-medium capitalize mt-1">
+                                        {user.plan_tier || 'Starter'} Plan
+                                    </p>
+                                </div>
+                                <Link href="/dashboard/subscription">
+                                    <Button variant="outline" size="sm" className="h-8">
+                                        Manage
+                                    </Button>
+                                </Link>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,7 +9,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Lock, Mail, ArrowRight, Shield } from 'lucide-react'
+import { Loader2, Lock, Mail, ArrowRight, Shield, Wifi, WifiOff } from 'lucide-react'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
+const API_LABEL = API_BASE_URL || 'proxy → :8000'
 
 export default function LoginPage() {
     const router = useRouter()
@@ -19,6 +22,15 @@ export default function LoginPage() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [apiReachable, setApiReachable] = useState<boolean | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+        fetch(`${API_BASE_URL}/api/health`)
+            .then(() => { if (!cancelled) setApiReachable(true) })
+            .catch(() => { if (!cancelled) setApiReachable(false) })
+        return () => { cancelled = true }
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -66,6 +78,20 @@ export default function LoginPage() {
                 </CardHeader>
 
                 <CardContent>
+                    {apiReachable === false && (
+                        <Alert variant="destructive" className="mb-4">
+                            <WifiOff className="h-4 w-4" />
+                            <AlertDescription>
+                                Backend injoignable ({API_LABEL}). Démarrez-le : <code className="text-xs bg-black/10 px-1 rounded">cd backend && python run.py</code>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {apiReachable === true && (
+                        <Alert className="mb-4 border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950">
+                            <Wifi className="h-4 w-4 text-green-600" />
+                            <AlertDescription>API connectée ({API_LABEL})</AlertDescription>
+                        </Alert>
+                    )}
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
                             <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">

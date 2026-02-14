@@ -10,6 +10,16 @@ interface User {
     is_active: boolean
     is_superuser?: boolean
     created_at: string
+    // White Label Branding
+    agency_name?: string
+    brand_color?: string
+    logo_url?: string
+    // Billing
+    plan_tier?: "starter" | "pro" | "agency"
+    subscription_active?: boolean
+    subscription_end_date?: string
+    scans_count_today?: number
+    last_scan_date?: string
 }
 
 interface AuthContextType {
@@ -25,8 +35,19 @@ interface AuthContextType {
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
+
+function getApiError(err: unknown): string {
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        const displayUrl = API_BASE_URL || 'proxy (port 8000)'
+        if (typeof window !== 'undefined') {
+            console.error('[Auth] API injoignable. URL utilisée:', displayUrl)
+        }
+        return `Impossible de joindre l'API (${displayUrl}). Vérifiez que le backend est démarré : cd backend && python run.py`
+    }
+    if (err instanceof Error) return err.message
+    return 'Erreur réseau. Réessayez.'
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
@@ -78,8 +99,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
 
             if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.detail || 'Login failed')
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const error = await response.json();
+                    throw new Error(error.message || error.detail || 'Login failed');
+                } else {
+                    const text = await response.text();
+                    console.error('Non-JSON error response:', text);
+                    throw new Error('Server error: ' + response.status + ' ' + response.statusText);
+                }
             }
 
             const data = await response.json()
@@ -99,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(userData)
             }
         } catch (error) {
-            throw error
+            throw new Error(getApiError(error))
         }
     }
 
@@ -118,8 +146,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
 
             if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.detail || 'Registration failed')
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const error = await response.json();
+                    throw new Error(error.message || error.detail || 'Registration failed');
+                } else {
+                    const text = await response.text();
+                    console.error('Non-JSON error response:', text);
+                    throw new Error('Server error: ' + response.status + ' ' + response.statusText);
+                }
             }
 
             // Verification is now required
@@ -127,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // await login(email, password)
         } catch (error) {
             console.error('Registration error:', error)
-            throw error
+            throw new Error(getApiError(error))
         }
     }
 
