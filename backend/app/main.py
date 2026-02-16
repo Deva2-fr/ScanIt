@@ -20,11 +20,20 @@ async def lifespan(app: FastAPI):
     # Initialize Scheduler
     from app.services.monitoring import start_scheduler, shutdown_scheduler
     start_scheduler()
+
+    # Task Recovery: Mark stuck tasks from previous run as FAILED
+    from app.services.task_recovery import TaskRecoveryService
+    try:
+        TaskRecoveryService.recover_stuck_tasks()
+    except Exception as e:
+        logger.error(f"Task Recovery failed during startup: {e}")
     
     yield
     # Shutdown
     logger.info("Shutting down...")
     shutdown_scheduler()
+    from app.services.rendering import RenderingService
+    await RenderingService.stop()
 
 from .api import auth, analyze, audit, billing, monitors, ai, api_keys, leads, widget, users
 from fastapi.staticfiles import StaticFiles

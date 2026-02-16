@@ -100,6 +100,23 @@ async def read_audit(
     
     if not audit:
         raise HTTPException(status_code=404, detail="Audit not found")
+
+    # Enforce History Limits for single audit view
+    from datetime import datetime, timedelta
+    from ..core.permissions import FeatureGuard
+    
+    plan = current_user.plan_tier or "starter"
+    config = FeatureGuard.get_plan_config(plan)
+    days_limit = config.get("history_days", 7)
+    
+    # We use a safe buffer or exact check? Exact check.
+    cutoff_date = datetime.utcnow() - timedelta(days=days_limit)
+    
+    if audit.created_at < cutoff_date:
+         raise HTTPException(
+            status_code=403, 
+            detail=f"This audit is older than {days_limit} days. Upgrade your plan to access full history."
+        )
         
     return audit
 

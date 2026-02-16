@@ -35,7 +35,7 @@ export default function RootLayout({
           <QueryProvider>
             <LanguageProvider>
               {children}
-              <Toaster richColors position="top-right" />
+              <Toaster richColors position="top-left" closeButton />
             </LanguageProvider>
           </QueryProvider>
         </AuthProvider>

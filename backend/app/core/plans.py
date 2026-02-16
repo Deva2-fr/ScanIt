@@ -2,21 +2,25 @@
 PLANS = {
     "starter": {
         "daily_scans": 5,
-        "features": ["basic_scan"],
+        "features": ["basic_scan", "seo_scan", "tech_scan", "links_scan", "smo_scan", "dns_scan"],
         "label": "Starter (Gratuit)",
         "history_days": 7,
         "monitor_limit": 1
     },
     "pro": {
         "daily_scans": 50,
-        "features": ["basic_scan", "deep_scan", "pdf_export", "history", "ai_assistant"],
+        "features": ["basic_scan", "deep_scan", "pdf_export", "history", "ai_assistant", 
+                     "seo_scan", "tech_scan", "links_scan", "smo_scan", "dns_scan",
+                     "security_scan", "gdpr_scan", "green_scan"],
         "label": "Pro",
         "history_days": 30,
         "monitor_limit": 10
     },
     "agency": {
         "daily_scans": 9999,
-        "features": ["basic_scan", "deep_scan", "pdf_export", "history", "ai_assistant", "whitelabel", "api_access", "lead_widget"],
+        "features": ["basic_scan", "deep_scan", "pdf_export", "history", "ai_assistant", "whitelabel", "api_access", "lead_widget",
+                     "seo_scan", "tech_scan", "links_scan", "smo_scan", "dns_scan",
+                     "security_scan", "gdpr_scan", "green_scan"],
         "label": "Agency",
         "history_days": 3650,
         "monitor_limit": 9999

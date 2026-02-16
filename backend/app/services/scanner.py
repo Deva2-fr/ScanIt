@@ -35,7 +35,7 @@ from .smo import SMOAnalyzer
 from .green_it import GreenITAnalyzer
 from .dns_health import DNSAnalyzer
 
-async def process_url(url: str, lang: str = "en") -> tuple[AnalyzeResponse, Optional[bytes]]:
+async def process_url(url: str, lang: str = "en", allowed_features: List[str] = None) -> tuple[AnalyzeResponse, Optional[bytes]]:
     """
     Process a single URL (Wrapper around stream).
     Returns (Result, ScreenshotBytes)
@@ -43,7 +43,7 @@ async def process_url(url: str, lang: str = "en") -> tuple[AnalyzeResponse, Opti
     final_result = None
     screenshot_bytes = None
     
-    async for chunk in process_url_stream(url, lang):
+    async for chunk in process_url_stream(url, lang, allowed_features):
         try:
             data = json.loads(chunk)
             if data.get("type") == "complete":
@@ -60,26 +60,39 @@ async def process_url(url: str, lang: str = "en") -> tuple[AnalyzeResponse, Opti
     return final_result, screenshot_bytes
 
 
-async def process_url_stream(url: str, lang: str = "en") -> AsyncGenerator[str, None]:
+async def process_url_stream(url: str, lang: str = "en", allowed_features: List[str] = None) -> AsyncGenerator[str, None]:
     """
     Generator that streams analysis progress and final result.
     Yields JSON strings (NDJSON format).
     """
     start_time = time.time()
     
+    # Default to all if not specified (backward compatibility/admin)
+    # But ideally, caller should always specify.
+    if allowed_features is None:
+        allowed_features = ["basic_scan", "seo_scan", "tech_scan", "links_scan", "smo_scan", "dns_scan", "security_scan", "gdpr_scan", "green_scan", "deep_scan"]
+
     # 1. Yield Start
     yield json.dumps({"type": "log", "step": "init", "message": f"Starting analysis for {url}..."}) + "\n"
 
-    # Initialize analyzers
-    seo_analyzer = SEOAnalyzer()
-    security_analyzer = SecurityAnalyzer()
-    tech_analyzer = TechStackAnalyzer()
-    links_analyzer = BrokenLinksAnalyzer()
-    gdpr_analyzer = GDPRAnalyzer()
-    smo_analyzer = SMOAnalyzer()
-    green_analyzer = GreenITAnalyzer()
-    dns_analyzer = DNSAnalyzer()
+    # Initialize analyzers based on permissions
+    analyzers_tasks = []
     
+    # Map feature names to (AnalyzerInstance, TaskName)
+    # feature_key -> (Analyzer, "internal_name")
+    
+    # Map feature names to (AnalyzerClass, TaskName) - Class not Instance!
+    potential_analyzers = [
+        ("seo_scan", SEOAnalyzer, "seo"),
+        ("security_scan", SecurityAnalyzer, "security"),
+        ("tech_scan", TechStackAnalyzer, "tech"),
+        ("links_scan", BrokenLinksAnalyzer, "links"),
+        ("gdpr_scan", GDPRAnalyzer, "gdpr"),
+        ("smo_scan", SMOAnalyzer, "smo"),
+        ("green_scan", GreenITAnalyzer, "green"),
+        ("dns_scan", DNSAnalyzer, "dns"),
+    ]
+
     errors = []
     
     try:
@@ -121,28 +134,29 @@ async def process_url_stream(url: str, lang: str = "en") -> AsyncGenerator[str, 
             
         yield json.dumps({"type": "log", "step": "network", "message": "Site is accessible."}) + "\n"
 
-        # 3. Fetch Rendered DOM
-        yield json.dumps({"type": "log", "step": "rendering", "message": "Simulating browser visit (Puppeteer)..."}) + "\n"
-        try:
-            rendered_html, screenshot_bytes = await RenderingService.fetch_rendered_html(url)
-            yield json.dumps({"type": "log", "step": "rendering", "message": "Page rendered successfully."}) + "\n"
-            
-            # If screenshot exists, we can optionally yield it or store it for the final result
-            # For now, let's keep it in memory to attach to the final object if needed
-            # But the final object is JSON.
-            # We will handle it by saving it if this function is called in a context that expects it?
-            # Or we can yield a special "screenshot" type event with base64 data for the frontend to show "Preview"
-            if screenshot_bytes:
-                 import base64
-                 b64_img = base64.b64encode(screenshot_bytes).decode('utf-8')
-                 # Yield a preview event (optional, but good for UI)
-                 yield json.dumps({"type": "screenshot", "data": b64_img}) + "\n"
-                 
-        except Exception as e:
-            logger.error(f"Deep Scan failed for {url}: {e}")
-            rendered_html = None 
-            yield json.dumps({"type": "log", "step": "rendering", "message": "Rendering failed, falling back to static analysis."}) + "\n"
-        
+        # 3. Fetch Rendered DOM (Only if deep_scan is allowed)
+        if "deep_scan" in allowed_features:
+            yield json.dumps({"type": "log", "step": "rendering", "message": "Simulating browser visit (Puppeteer)..."}) + "\n"
+            try:
+                rendered_html, screenshot_bytes = await RenderingService.fetch_rendered_html(url)
+                yield json.dumps({"type": "log", "step": "rendering", "message": "Page rendered successfully."}) + "\n"
+                
+                if screenshot_bytes:
+                     import base64
+                     b64_img = base64.b64encode(screenshot_bytes).decode('utf-8')
+                     yield json.dumps({"type": "screenshot", "data": b64_img}) + "\n"
+                     
+            except Exception as e:
+                logger.error(f"Deep Scan failed for {url}: {e}")
+                rendered_html = None 
+                yield json.dumps({"type": "log", "step": "rendering", "message": "Rendering failed, falling back to static analysis."}) + "\n"
+        else:
+            yield json.dumps({"type": "log", "step": "rendering", "message": "Deep Scan (Puppeteer) skipped (Plan limit)."}) + "\n"
+            # Fallback: simple fetch for static analysis if no rendered_html
+            if not headers:
+                  # Should have been fetched in pre-flight, but lets allow simple text fetch if needed by analyzers
+                  pass
+
         # 4. Prepare Parallel Tasks
         yield json.dumps({"type": "log", "step": "analysis", "message": "Running specialized scanners..."}) + "\n"
         
@@ -153,30 +167,53 @@ async def process_url_stream(url: str, lang: str = "en") -> AsyncGenerator[str, 
             except Exception as e:
                 return name, e
 
-        tasks = [
-            run_wrapper("seo", seo_analyzer.analyze(url, lang, html_content=rendered_html)),
-            run_wrapper("security", security_analyzer.analyze(url)),
-            run_wrapper("tech", tech_analyzer.analyze(url, html_content=rendered_html, headers=headers)),
-            run_wrapper("links", links_analyzer.analyze(url, html_content=rendered_html)),
-            run_wrapper("gdpr", gdpr_analyzer.analyze(url)),
-            run_wrapper("smo", smo_analyzer.analyze(url, html_content=rendered_html)),
-            run_wrapper("green", green_analyzer.analyze(url, html_content=rendered_html)),
-            run_wrapper("dns", dns_analyzer.analyze(url))
-        ]
+        tasks = []
+        
+        for feature_key, analyzer_cls, internal_name in potential_analyzers:
+            if feature_key in allowed_features:
+                # Lazy Instantiation here!
+                analyzer = analyzer_cls()
+                
+                coro = None
+                if internal_name == "seo":
+                    coro = analyzer.analyze(url, lang, html_content=rendered_html)
+                elif internal_name == "security":
+                    coro = analyzer.analyze(url)
+                elif internal_name == "tech":
+                    coro = analyzer.analyze(url, html_content=rendered_html, headers=headers)
+                elif internal_name == "links":
+                    coro = analyzer.analyze(url, html_content=rendered_html)
+                elif internal_name == "gdpr":
+                    coro = analyzer.analyze(url)
+                elif internal_name == "smo":
+                    coro = analyzer.analyze(url, html_content=rendered_html)
+                elif internal_name == "green":
+                    coro = analyzer.analyze(url, html_content=rendered_html)
+                elif internal_name == "dns":
+                    coro = analyzer.analyze(url)
+                
+                if coro:
+                    tasks.append(run_wrapper(internal_name, coro))
+            else:
+                 yield json.dumps({"type": "log", "step": internal_name, "message": f"⏭️ {internal_name.upper()} skipped (Plan limit)."}) + "\n"
+
         
         results_map = {}
         
         # 5. Run and yield as completed
-        for future in asyncio.as_completed(tasks):
-             name, result = await future
-             results_map[name] = result
-             
-             # Yield progress log
-             clean_name = name.upper() if len(name) < 4 else name.title()
-             if isinstance(result, Exception):
-                 yield json.dumps({"type": "log", "step": name, "message": f"❌ {clean_name} failed."}) + "\n"
-             else:
-                 yield json.dumps({"type": "log", "step": name, "message": f"✅ {clean_name} completed."}) + "\n"
+        if tasks:
+            for future in asyncio.as_completed(tasks):
+                 name, result = await future
+                 results_map[name] = result
+                 
+                 # Yield progress log
+                 clean_name = name.upper() if len(name) < 4 else name.title()
+                 if isinstance(result, Exception):
+                     yield json.dumps({"type": "log", "step": name, "message": f"❌ {clean_name} failed."}) + "\n"
+                 else:
+                     yield json.dumps({"type": "log", "step": name, "message": f"✅ {clean_name} completed."}) + "\n"
+        else:
+             yield json.dumps({"type": "log", "step": "analysis", "message": "No scanners selected."}) + "\n"
 
         # 6. Aggregate Results
         yield json.dumps({"type": "log", "step": "finalize", "message": "Aggregating results..."}) + "\n"
@@ -187,6 +224,14 @@ async def process_url_stream(url: str, lang: str = "en") -> AsyncGenerator[str, 
             if isinstance(res, Exception):
                 err_append.append(f"{key.upper()} analysis failed: {str(res)}")
                 return default_cls(error=str(res))
+            # If not in results map (skipped), return empty/skipped result?
+            # Or return None? The model expects Optional or a default object.
+            # Returning default object with "Skipped" error/status might be cleaner for frontend 
+            if res is None:
+                # Check if it was skipped or just missing
+                # If feature not in allowed, it was skipped
+                return default_cls(error="Skipped (Plan Limit)")
+            
             return res or default_cls(error="Result missing")
 
         seo_result = get_res("seo", SEOResult, errors)

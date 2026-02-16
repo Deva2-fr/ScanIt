@@ -1,13 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GDPRResult } from "@/types/api";
-import { Shield, CheckCircle2, AlertTriangle, Cookie as CookieIcon, FileText, Ban, ExternalLink } from "lucide-react";
+import { GDPRResult } from "@/types";
+import { Cookie, ShieldCheck, ShieldAlert, FileText, CheckCircle, XCircle, Shield, AlertTriangle, CheckCircle2, Ban, ExternalLink, Cookie as CookieIcon } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { RestrictedAccess } from "@/components/ui/restricted-access";
 
 interface GdprSectionProps {
     data: GDPRResult;
 }
 
 export function GdprSection({ data }: GdprSectionProps) {
+    // Check for Plan Limit
+    if (data.error?.includes("Plan Limit")) {
+        return <RestrictedAccess feature="RGPD" />;
+    }
+
     // If data is missing (old scan), don't break
     if (!data) return null;
 

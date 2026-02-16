@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { GreenResult } from "@/types/api";
-import { Leaf, Info, Scale, FileJson } from "lucide-react";
+import { GreenResult } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { Leaf, Award, Weight, Database, Scale, FileJson, Info } from "lucide-react";
+import { RestrictedAccess } from "@/components/ui/restricted-access";
 
 interface GreenSectionProps {
     data: GreenResult;
@@ -9,6 +11,12 @@ interface GreenSectionProps {
 export function GreenSection({ data }: GreenSectionProps) {
     if (!data) return null;
 
+    // Check for Plan Limit
+    if (data.error?.includes("Plan Limit")) {
+        return <RestrictedAccess feature="Green IT & Carbone" />;
+    }
+
+    // Determine color based on grade
     const getGradeColor = (grade: string) => {
         const colors: Record<string, string> = {
             "A": "bg-emerald-500 text-white shadow-emerald-500/20",

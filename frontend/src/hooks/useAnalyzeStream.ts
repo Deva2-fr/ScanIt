@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { AnalyzeResponse } from "@/types";
+import { ApiError } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -117,7 +118,14 @@ export function useAnalyzeStream(): UseAnalyzeStreamReturn {
             });
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`Analyze failed: ${response.status} - ${errText}`);
+                // Try to parse JSON error message if possible
+                let errorDetails = errText;
+                try {
+                    const jsonError = JSON.parse(errText);
+                    if (jsonError.detail) errorDetails = jsonError.detail;
+                } catch (e) { /* ignore */ }
+
+                throw new ApiError(response.status, errorDetails);
             }
 
             if (!response.body) throw new Error("ReadableStream not supported by browser.");

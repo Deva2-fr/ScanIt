@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RestrictedAccess } from "@/components/ui/restricted-access";
 import {
     Accordion,
     AccordionContent,
@@ -190,6 +191,11 @@ function ExposedFileCard({
 
 export function SecuritySection({ data, className }: SecuritySectionProps) {
     const [selectedHeader, setSelectedHeader] = useState<SecurityHeader | null>(null);
+
+    // Check for Plan Limit
+    if (data.error?.includes("Plan Limit")) {
+        return <RestrictedAccess feature="Security" />;
+    }
     const [selectedFile, setSelectedFile] = useState<ExposedFile | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogType, setDialogType] = useState<"header" | "file">("header");

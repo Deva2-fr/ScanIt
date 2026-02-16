@@ -10,9 +10,11 @@ import { analyzeUrl, healthCheck, ApiError } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n";
 import { AnalyzeResponse, AnalysisStep } from "@/types";
 import { AlertCircle, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnalyzeStream } from "@/hooks/useAnalyzeStream";
 import { useSaveScan } from "@/hooks/useScan";
+import { QuotaReachedDialog } from "@/components/dialogs/quota-reached-dialog";
 
 type AppState = "idle" | "loading" | "results" | "error";
 
@@ -25,6 +27,7 @@ export default function Home() {
   const [results, setResults] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isApiHealthy, setIsApiHealthy] = useState<boolean | null>(null);
+  const [showQuotaDialog, setShowQuotaDialog] = useState(false);
 
   // Initialize steps with translations
   const getInitialSteps = useCallback((): AnalysisStep[] => [
@@ -66,6 +69,11 @@ export default function Home() {
   }, [currentStep, state]);
 
   const handleSearch = useCallback(async (url: string, competitorUrl?: string) => {
+    if (!isAuthenticated) {
+      toast.error("Veuillez vous connecter pour lancer un scan.");
+      return;
+    }
+
     setState("loading");
     setError(null);
     setSteps(getInitialSteps().map((s) => ({ ...s, status: "pending" })));
@@ -86,14 +94,37 @@ export default function Home() {
       setResults(data);
       setState("results");
     } catch (err: any) {
+      // Check for Quota Limit (403) FIRST
+      if (err instanceof ApiError && err.status === 403) {
+        const msg = err.message.toLowerCase();
+        if (msg.includes("quota") || msg.includes("limit") || msg.includes("plan")) {
+          console.log("Quota reached, triggering dialog."); // Info log only
+          setShowQuotaDialog(true);
+          setState("idle");
+          setSteps(getInitialSteps()); // Reset visual steps
+          return;
+        }
+      }
+
       console.error("Analysis error:", err);
 
       setSteps((prev) => prev.map(s => ({ ...s, status: "error" })));
 
       if (err instanceof ApiError) {
-        setError(err.message);
+        if (err.status === 504 || err.status === 408) {
+          setError("Le scan a pris trop de temps. Le site est peut-être lent ou inaccessible.");
+        } else if (err.status === 500) {
+          setError("Une erreur interne est survenue. Veuillez réessayer plus tard.");
+        } else {
+          setError(err.message);
+        }
       } else {
-        setError(err.message || t.home.apiUnavailable);
+        // Network errors or other
+        if (err.message && (err.message.includes("fetch") || err.message.includes("network"))) {
+          setError("Impossible de contacter le serveur. Vérifiez votre connexion.");
+        } else {
+          setError(err.message || t.home.apiUnavailable);
+        }
       }
       setState("error");
     }
@@ -201,9 +232,15 @@ export default function Home() {
 
               {/* Error message */}
               {error && (
-                <Alert variant="destructive" className="max-w-xl mx-auto mt-6 bg-red-500/10 border-red-500/30">
+                <Alert variant="destructive" className="max-w-xl mx-auto mt-6 bg-red-500/10 border-red-500/30 text-red-200 relative">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
+                  <AlertDescription className="font-medium pr-6">{error}</AlertDescription>
+                  <button
+                    onClick={() => setError(null)}
+                    className="absolute top-4 right-4 text-red-400 hover:text-red-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                  </button>
                 </Alert>
               )}
             </>
@@ -220,6 +257,8 @@ export default function Home() {
       <footer className="relative z-10 py-6 text-center text-sm text-zinc-600">
         <p>{t.home.footer}</p>
       </footer>
+
+      <QuotaReachedDialog open={showQuotaDialog} onOpenChange={setShowQuotaDialog} />
     </div>
   );
 }

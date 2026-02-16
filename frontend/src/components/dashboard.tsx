@@ -122,21 +122,26 @@ export function Dashboard({ data, onBack, onRescan }: DashboardProps) {
                                 score={data.seo.scores.performance}
                                 label={t.seo.performance}
                                 size="sm"
+                                // Performance is usually computed if SEO is allowed, but let's check
+                                restricted={data.seo.error?.includes("Plan Limit")}
                             />
                             <ScoreGauge
                                 score={data.seo.scores.seo}
                                 label="SEO"
                                 size="sm"
+                                restricted={data.seo.error?.includes("Plan Limit")}
                             />
                             <ScoreGauge
                                 score={data.security.score}
                                 label={t.security.title.split(" ")[0]}
                                 size="sm"
+                                restricted={data.security.error?.includes("Plan Limit")}
                             />
                             <ScoreGauge
                                 score={data.seo.scores.accessibility}
                                 label={t.seo.accessibility}
                                 size="sm"
+                                restricted={data.seo.error?.includes("Plan Limit")}
                             />
                         </div>
                     </div>
@@ -212,7 +217,11 @@ export function Dashboard({ data, onBack, onRescan }: DashboardProps) {
                                 <div>
                                     <p className="text-sm text-zinc-500">{t.security.title.split(" ")[0]}</p>
                                     <p className="text-xl font-bold text-zinc-100">
-                                        {data.security.score}/100
+                                        {data.security.error?.includes("Plan Limit") ? (
+                                            <span className="text-sm text-zinc-500 uppercase">Plan requis</span>
+                                        ) : (
+                                            `${data.security.score}/100`
+                                        )}
                                     </p>
                                 </div>
                             </CardContent>
@@ -226,11 +235,17 @@ export function Dashboard({ data, onBack, onRescan }: DashboardProps) {
                                 <div>
                                     <p className="text-sm text-zinc-500">{t.tech.title}</p>
                                     <p className="text-xl font-bold text-zinc-100">
-                                        {data.tech_stack.technologies.length}
-                                        {data.tech_stack.outdated_count > 0 && (
-                                            <Badge variant="outline" className="ml-2 text-xs border-amber-500/50 text-amber-400">
-                                                {data.tech_stack.outdated_count} {t.common.outdated}
-                                            </Badge>
+                                        {data.tech_stack.error?.includes("Plan Limit") ? (
+                                            <span className="text-sm text-zinc-500 uppercase">Plan requis</span>
+                                        ) : (
+                                            <>
+                                                {data.tech_stack.technologies.length}
+                                                {data.tech_stack.outdated_count > 0 && (
+                                                    <Badge variant="outline" className="ml-2 text-xs border-amber-500/50 text-amber-400">
+                                                        {data.tech_stack.outdated_count} {t.common.outdated}
+                                                    </Badge>
+                                                )}
+                                            </>
                                         )}
                                     </p>
                                 </div>
@@ -253,7 +268,11 @@ export function Dashboard({ data, onBack, onRescan }: DashboardProps) {
                                         "text-xl font-bold",
                                         data.broken_links.broken_count > 0 ? "text-red-400" : "text-emerald-400"
                                     )}>
-                                        {data.broken_links.broken_count} / {data.broken_links.total_links_checked}
+                                        {data.broken_links.error?.includes("Plan Limit") ? (
+                                            <span className="text-sm text-zinc-500 uppercase">Plan requis</span>
+                                        ) : (
+                                            `${data.broken_links.broken_count} / ${data.broken_links.total_links_checked}`
+                                        )}
                                     </p>
                                 </div>
                             </CardContent>
@@ -275,7 +294,11 @@ export function Dashboard({ data, onBack, onRescan }: DashboardProps) {
                                         "text-xl font-bold",
                                         data.gdpr?.compliant ? "text-emerald-400" : "text-red-400"
                                     )}>
-                                        {data.gdpr?.compliant ? "Conforme" : "Défaillant"}
+                                        {data.gdpr?.error?.includes("Plan Limit") ? (
+                                            <span className="text-sm text-zinc-500 uppercase">Plan requis</span>
+                                        ) : (
+                                            data.gdpr?.compliant ? "Conforme" : "Défaillant"
+                                        )}
                                     </p>
                                 </div>
                             </CardContent>

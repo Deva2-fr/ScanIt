@@ -19,11 +19,18 @@ function clampScore(score: number | null | undefined): number {
     return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-export function ScoreGauge({ score, label, size = "md", className }: ScoreGaugeProps) {
+export function ScoreGauge({ score, label, size = "md", className, restricted = false }: ScoreGaugeProps & { restricted?: boolean }) {
     const isAvailable = score !== null && score !== undefined;
     const displayScore = clampScore(score);
 
     const { color, bgColor, glowColor } = useMemo(() => {
+        if (restricted) {
+            return {
+                color: "#71717a", // zinc-500
+                bgColor: "rgba(113, 113, 122, 0.1)",
+                glowColor: "rgba(113, 113, 122, 0.0)", // No glow for restricted
+            };
+        }
         if (!isAvailable) {
             return {
                 color: "#71717a", // zinc-500
@@ -50,12 +57,12 @@ export function ScoreGauge({ score, label, size = "md", className }: ScoreGaugeP
                 glowColor: "rgba(239, 68, 68, 0.4)",
             };
         }
-    }, [displayScore, isAvailable]);
+    }, [displayScore, isAvailable, restricted]);
 
     const data = [
         {
             name: label,
-            value: displayScore,
+            value: restricted ? 100 : displayScore, // Full circle for restricted but gray
             fill: color,
         },
     ];
@@ -71,10 +78,12 @@ export function ScoreGauge({ score, label, size = "md", className }: ScoreGaugeP
     return (
         <div className={cn("relative flex flex-col items-center", className)}>
             {/* Glow effect */}
-            <div
-                className={cn("absolute rounded-full blur-2xl opacity-50", dim.container)}
-                style={{ backgroundColor: glowColor }}
-            />
+            {!restricted && (
+                <div
+                    className={cn("absolute rounded-full blur-2xl opacity-50", dim.container)}
+                    style={{ backgroundColor: glowColor }}
+                />
+            )}
 
             {/* Chart */}
             <div className={cn("relative", dim.container)}>
@@ -105,7 +114,11 @@ export function ScoreGauge({ score, label, size = "md", className }: ScoreGaugeP
 
                 {/* Center text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    {isAvailable ? (
+                    {restricted ? (
+                        <div className="flex flex-col items-center text-center px-1">
+                            <span className="text-[10px] uppercase font-bold text-zinc-500 leading-tight">Changer<br />de plan</span>
+                        </div>
+                    ) : isAvailable ? (
                         <span
                             className={cn("font-bold tabular-nums", dim.text)}
                             style={{ color }}
