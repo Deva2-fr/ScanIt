@@ -276,3 +276,128 @@ async def process_url_stream(url: str, lang: str = "en", allowed_features: List[
         logger.error(f"Stream failed: {e}")
         yield json.dumps({"type": "error", "message": str(e)}) + "\n"
         raise e
+
+
+async def process_battle_stream(
+    url: str, 
+    competitor_url: str, 
+    lang: str = "en", 
+    allowed_features: List[str] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Stream battle mode analysis (Target vs Competitor).
+    Runs two streams concurrently and merges logs.
+    """
+    import asyncio
+    
+    # queues to hold chunks from each stream
+    q_target = asyncio.Queue()
+    q_competitor = asyncio.Queue()
+    
+    async def consume_stream(stream, queue, label):
+        try:
+            async for chunk in stream:
+                await queue.put((label, chunk))
+        except Exception as e:
+            await queue.put((label, json.dumps({"type": "error", "message": str(e)}) + "\n"))
+        finally:
+            await queue.put(None) # Sentinel
+
+    # Start producers
+    stream_target = process_url_stream(url, lang, allowed_features)
+    stream_competitor = process_url_stream(competitor_url, lang, allowed_features)
+    
+    t1 = asyncio.create_task(consume_stream(stream_target, q_target, "Target"))
+    t2 = asyncio.create_task(consume_stream(stream_competitor, q_competitor, "Competitor"))
+    
+    target_done = False
+    competitor_done = False
+    
+    target_result = None
+    competitor_result = None
+    
+    yield json.dumps({"type": "log", "step": "init", "message": "⚔️ Starting Battle Mode..."}) + "\n"
+
+    while not (target_done and competitor_done):
+        # We want to yield logs as they come in.
+        # We'll race getting from both queues.
+        
+        get_t = asyncio.create_task(q_target.get()) if not target_done else None
+        get_c = asyncio.create_task(q_competitor.get()) if not competitor_done else None
+        
+        wait_list = [t for t in [get_t, get_c] if t is not None]
+        
+        if not wait_list:
+            break
+            
+        done, pending = await asyncio.wait(wait_list, return_when=asyncio.FIRST_COMPLETED)
+        
+        for task in done:
+            if task == get_t:
+                res = task.result()
+                if res is None:
+                    target_done = True
+                else:
+                    label, chunk = res
+                    # Parse chunk to verify type
+                    try:
+                        data = json.loads(chunk)
+                        if data["type"] == "log":
+                            # Prefix log message
+                            data["message"] = f"[{label}] {data['message']}"
+                            yield json.dumps(data) + "\n"
+                        elif data["type"] == "complete":
+                            target_result = AnalyzeResponse(**data["data"])
+                        elif data["type"] == "error":
+                            yield chunk # Propagate error
+                    except:
+                        pass # Ignore parse errors
+            
+            elif task == get_c:
+                res = task.result()
+                if res is None:
+                    competitor_done = True
+                else:
+                    label, chunk = res
+                    try:
+                        data = json.loads(chunk)
+                        if data["type"] == "log":
+                            data["message"] = f"[{label}] {data['message']}"
+                            yield json.dumps(data) + "\n"
+                        elif data["type"] == "complete":
+                            competitor_result = AnalyzeResponse(**data["data"])
+                        elif data["type"] == "error":
+                            yield chunk
+                    except:
+                        pass
+
+        # clean up pending? actually we should probably cancel them or re-use them
+        # but for simplicity in this loop we just cancel and re-create next iteration
+        # This is slightly inefficient but safe. 
+        # Better: keep the pending tasks for next iteration.
+        for task in pending:
+            task.cancel()
+    
+    # Both done. Compare results.
+    if target_result and competitor_result:
+        yield json.dumps({"type": "log", "step": "finalize", "message": "🏆 Calculating winner..."}) + "\n"
+        
+        target_result.competitor = competitor_result
+        target_result.versus_mode = True
+        
+        main_score = target_result.global_score
+        comp_score = competitor_result.global_score
+        
+        if main_score > comp_score:
+            target_result.winner = "target"
+        elif main_score < comp_score:
+            target_result.winner = "competitor"
+        else:
+            target_result.winner = "draw"
+            
+        yield json.dumps({
+            "type": "complete", 
+            "data": target_result.model_dump(mode='json')
+        }) + "\n"
+    else:
+        yield json.dumps({"type": "error", "message": "Battle failed: One or both scans did not complete."}) + "\n"

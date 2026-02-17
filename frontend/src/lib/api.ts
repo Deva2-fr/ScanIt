@@ -169,4 +169,35 @@ export async function cancelSubscription(token: string): Promise<any> {
     return createCheckoutSession("free", token);
 }
 
+// Audits / History
+export async function saveAudit(scanData: AnalyzeResponse, token: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/audits/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            url: scanData.url,
+            score: scanData.global_score,
+            summary: {
+                seo: scanData.seo.scores.seo != null ? Math.round(scanData.seo.scores.seo <= 1 ? scanData.seo.scores.seo * 100 : scanData.seo.scores.seo) : 0,
+                security: Math.round(scanData.security.score),
+                performance: scanData.seo.scores.performance != null ? Math.round(scanData.seo.scores.performance <= 1 ? scanData.seo.scores.performance * 100 : scanData.seo.scores.performance) : 0
+            }
+        })
+    });
+
+    if (!response.ok) throw new Error("Failed to save history");
+    return response.json();
+}
+
+export async function getAudits(token: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE_URL}/api/audits/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error("Failed to fetch history");
+    return res.json();
+}
+
 export { ApiError };

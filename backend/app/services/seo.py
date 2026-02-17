@@ -4,6 +4,7 @@ Uses Google PageSpeed Insights API (Lighthouse)
 """
 import httpx
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List
 from ..config import get_settings
 from ..models import SEOResult, CoreWebVitals, LighthouseScores
@@ -82,7 +83,8 @@ class SEOAnalyzer:
 
         if target_html:
             logger.info("⚡ Executing Local SEO Analysis")
-            return self._local_analyze(target_html, url)
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, self._local_analyze, target_html, url)
             
         return SEOResult(error="PageSpeed API failed and all local fetch attempts failed.")
 

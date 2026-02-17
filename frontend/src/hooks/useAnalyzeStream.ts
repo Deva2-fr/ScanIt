@@ -36,80 +36,12 @@ export function useAnalyzeStream(): UseAnalyzeStreamReturn {
         setLogs([]);
         setCurrentStep("init");
 
-        // BATTLE MODE: Use POST /api/analyze for competitor comparison
+        // BATTLE MODE & STANDARD MODE: Use /api/stream
+        const params = new URLSearchParams({ url, lang });
         if (competitorUrl) {
-
-            // Safely get hostname
-            const getHostname = (u: string) => {
-                try {
-                    return new URL(u).hostname;
-                } catch {
-                    return u;
-                }
-            };
-
-            // Simulate streaming logs for UX feedback
-            const battleSteps = [
-                { step: "init", message: "🏆 Initializing Battle Mode...", delay: 100 },
-                { step: "seo", message: `📊 Analyzing ${getHostname(url)}...`, delay: 500 },
-                { step: "seo", message: `📊 Analyzing ${getHostname(competitorUrl)}...`, delay: 500 },
-                { step: "security", message: "🔒 Scanning security headers (parallel)...", delay: 1000 },
-                { step: "tech", message: "🛠️ Detecting technologies...", delay: 1000 },
-                { step: "performance", message: "⚡ Running Lighthouse audits...", delay: 1500 },
-                { step: "links", message: "🔗 Checking broken links...", delay: 1000 },
-                { step: "complete", message: "🏆 Comparing results...", delay: 500 }
-            ];
-
-            // Start simulated progress
-            let currentIndex = 0;
-            const simulateProgress = () => {
-                if (currentIndex < battleSteps.length) {
-                    const step = battleSteps[currentIndex];
-                    setLogs(prev => [...prev, step.message]);
-                    setCurrentStep(step.step);
-                    currentIndex++;
-                }
-            };
-
-            const interval = setInterval(simulateProgress, 800);
-
-            try {
-                const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-                const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(token && { Authorization: `Bearer ${token}` }),
-                    },
-                    body: JSON.stringify({
-                        url,
-                        competitor_url: competitorUrl,
-                        lang
-                    })
-                });
-
-                clearInterval(interval);
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`Battle Mode analysis failed: ${response.status} - ${errText}`);
-                }
-
-                const data: AnalyzeResponse = await response.json();
-
-                // Final log
-                setLogs(prev => [...prev, `✅ Battle complete! Winner: ${data.winner === 'target' ? 'You' : data.winner === 'competitor' ? 'Competitor' : 'Draw'}`]);
-                setCurrentStep("complete");
-
-                return data;
-            } catch (error) {
-                clearInterval(interval);
-                console.error("Battle Mode Error:", error);
-                throw error;
-            }
+            params.append("competitor_url", competitorUrl);
         }
 
-        const params = new URLSearchParams({ url, lang });
         const endpoint = `${API_BASE_URL}/api/stream?${params.toString()}`;
         const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
         try {

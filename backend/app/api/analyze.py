@@ -148,6 +148,7 @@ from ..services.scanner import process_url_stream
 async def analyze_stream(
     url: str,
     lang: str = "en",
+    competitor_url: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -177,6 +178,20 @@ async def analyze_stream(
 
     if not validators.url(url):
         raise HTTPException(status_code=400, detail=f"Invalid URL: {url}")
+        
+    if competitor_url:
+        competitor_url = competitor_url.strip()
+        if not competitor_url.startswith(("http://", "https://")):
+            competitor_url = f"https://{competitor_url}"
+        if not validators.url(competitor_url):
+             raise HTTPException(status_code=400, detail=f"Invalid Competitor URL: {competitor_url}")
+             
+        # Use Battle Stream
+        from ..services.scanner import process_battle_stream
+        return StreamingResponse(
+            process_battle_stream(url, competitor_url, lang, allowed_features=allowed_features),
+            media_type="application/x-ndjson"
+        )
         
     return StreamingResponse(
         process_url_stream(url, lang, allowed_features=allowed_features), 
