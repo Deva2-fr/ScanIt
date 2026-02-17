@@ -77,6 +77,12 @@ app.include_router(api_keys.router)
 app.include_router(leads.router, prefix="/api/leads", tags=["leads"])
 app.include_router(widget.router, prefix="/api/widget", tags=["widget"])
 
+# Conditional Mock Billing Router (Dev Only)
+if settings.debug:
+    from .api import mock_billing
+    app.include_router(mock_billing.router)
+    logger.info("🔧 Mock Billing Router mounted at /api/billing/mock")
+
 @app.get("/")
 def read_root():
     return {"message": "Hello World"}

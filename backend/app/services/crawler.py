@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from typing import Set, List, Dict
+from typing import Set, List, Dict, Tuple
 from urllib.parse import urljoin, urlparse, urldefrag
+from collections import deque
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -9,10 +10,11 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 class AsyncCrawler:
-    def __init__(self, base_url: str, max_pages: int = 50, max_depth: int = 3):
+    def __init__(self, base_url: str, max_pages: int = 50, max_depth: int = 3, concurrency: int = 10):
         self.base_url = base_url
         self.max_pages = max_pages
         self.max_depth = max_depth
+        self.concurrency = concurrency
         self.visited: Set[str] = set()
         self.results: List[Dict[str, str]] = []  # Stores found URLs with metadata if needed
         self.domain = urlparse(base_url).netloc
@@ -66,49 +68,82 @@ class AsyncCrawler:
             logger.warning(f"Failed to fetch {url}: {str(e)}")
             return ""
 
+    async def _process_page(self, session: aiohttp.ClientSession, current_url: str, depth: int) -> List[Tuple[str, int]]:
+        """
+        Fetches and parses a single page, returning newly discovered links.
+        """
+        if depth >= self.max_depth:
+            return []
+
+        html = await self._fetch(session, current_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, "html.parser")
+        new_links = []
+        
+        # Extract links
+        for a_tag in soup.find_all("a", href=True):
+            href = a_tag["href"]
+            normalized = self._normalize_url(href, current_url)
+
+            if normalized:
+                new_links.append((normalized, depth + 1))
+                
+        return new_links
+
     async def crawl(self) -> Set[str]:
         """
-        Starts the BFS crawl.
+        Starts the BFS crawl using a concurrent batched approach.
         Returns the set of visited URLs.
         """
-        queue = [(self.base_url, 0)] # Tuple (url, depth)
+        queue = deque([(self.base_url, 0)]) # Tuple (url, depth)
         self.visited.add(self.base_url)
         
         # Use a single session for all requests
         async with aiohttp.ClientSession() as session:
             while queue and len(self.visited) < self.max_pages:
-                current_url, depth = queue.pop(0) # FIFO -> BFS
                 
-                if depth >= self.max_depth:
-                    continue
-
-                html = await self._fetch(session, current_url)
-                if not html:
-                    continue
-
-                soup = BeautifulSoup(html, "html.parser")
+                # Create a batch of tasks
+                batch = []
+                while queue and len(batch) < self.concurrency:
+                    batch.append(queue.popleft()) # FIFO -> BFS
                 
-                # Extract links
-                for a_tag in soup.find_all("a", href=True):
-                    href = a_tag["href"]
-                    normalized = self._normalize_url(href, current_url)
-
-                    if normalized and normalized not in self.visited:
+                if not batch:
+                    break
+                    
+                # Run batch in parallel
+                tasks = [self._process_page(session, url, depth) for url, depth in batch]
+                results = await asyncio.gather(*tasks)
+                
+                # Process results
+                for result_links in results:
+                    for url, depth in result_links:
+                        if url not in self.visited:
+                            if len(self.visited) >= self.max_pages:
+                                break
+                            self.visited.add(url)
+                            queue.append((url, depth))
+                        
                         if len(self.visited) >= self.max_pages:
                             break
-                        
-                        self.visited.add(normalized)
-                        queue.append((normalized, depth + 1))
+                    if len(self.visited) >= self.max_pages:
+                        break
                         
         return self.visited
 
 if __name__ == "__main__":
+    pass
     # Test simple
-    async def main():
-        crawler = AsyncCrawler("https://example.com", max_pages=10, max_depth=2)
-        urls = await crawler.crawl()
-        print(f"URLs found ({len(urls)}):")
-        for u in urls:
-            print(u)
+#     async def main():
+#         print("Starting crawl...")
+#         crawler = AsyncCrawler("https://example.com", max_pages=10, max_depth=2, concurrency=5)
+#         urls = await crawler.crawl()
+#         print(f"URLs found ({len(urls)}):")
+#         for u in urls:
+#             print(u)
             
-    # asyncio.run(main())
+#     try:
+#         asyncio.run(main())
+#     except KeyboardInterrupt:
+#         pass

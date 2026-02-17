@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     stripe_price_id_pro: str = "price_pro_monthly"
     stripe_price_id_agency: str = "price_agency_monthly"
 
+    # Celery
+    celery_broker_url: str = "redis://redis:6379/0"
+    celery_result_backend: str = "redis://redis:6379/0"
+
+    # Redis
+    redis_url: str = "redis://redis:6379/0"
+
     # AI / LLM
     openrouter_api_key: str = ""
     openai_api_key: str = ""

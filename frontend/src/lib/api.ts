@@ -113,7 +113,16 @@ export async function healthCheck(): Promise<boolean> {
  * Create a Stripe Checkout Session
  */
 export async function createCheckoutSession(priceId: string, token: string): Promise<{ url: string }> {
-    const response = await fetch(`${API_BASE_URL}/api/billing/checkout?price_id=${priceId}`, {
+    const isDev = process.env.NODE_ENV === "development";
+    const endpoint = isDev ? "/api/billing/mock/checkout" : "/api/billing/checkout";
+
+    // In mock mode, we might need a different payload or query params if the backend expects it.
+    // The current backend mock endpoint expects `price_id` as query param just like production.
+
+    // However, the production endpoint expects `price_id` as a query param ?price_id=...
+    // Let's keep it consistent.
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}?price_id=${priceId}`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`
@@ -132,7 +141,10 @@ export async function createCheckoutSession(priceId: string, token: string): Pro
  * Create a Stripe Customer Portal Session
  */
 export async function createPortalSession(token: string): Promise<{ url: string }> {
-    const response = await fetch(`${API_BASE_URL}/api/billing/portal`, {
+    const isDev = process.env.NODE_ENV === "development";
+    const endpoint = isDev ? "/api/billing/mock/portal" : "/api/billing/portal";
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`

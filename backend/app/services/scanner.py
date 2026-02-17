@@ -101,8 +101,10 @@ async def process_url_stream(url: str, lang: str = "en", allowed_features: List[
         
         # 2. Check Accessibility (Pre-flight check)
         yield json.dumps({"type": "log", "step": "network", "message": "Checking site accessibility..."}) + "\n"
-        try:
-             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, verify=False) as client:
+        
+        # Use a shared client for pre-flight to avoid overhead
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, verify=False) as client:
+            try:
                  # Check if site is reachable
                  try:
                     response = await client.head(url)
@@ -126,11 +128,11 @@ async def process_url_stream(url: str, lang: str = "en", allowed_features: List[
                  if response.status_code >= 500:
                       yield json.dumps({"type": "log", "step": "network", "message": f"Warning: Server returned {response.status_code}."}) + "\n"
 
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Pre-flight check failed for {url}: {e}")
-            yield json.dumps({"type": "error", "message": error_msg}) + "\n"
-            return
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Pre-flight check failed for {url}: {e}")
+                yield json.dumps({"type": "error", "message": error_msg}) + "\n"
+                return
             
         yield json.dumps({"type": "log", "step": "network", "message": "Site is accessible."}) + "\n"
 

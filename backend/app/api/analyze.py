@@ -12,7 +12,7 @@ from typing import Optional
 
 # ── Third-Party ──
 import validators
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlmodel import Session
 
@@ -43,6 +43,7 @@ router = APIRouter(prefix="/api", tags=["Analysis"])
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_url(
     request: AnalyzeRequest,
+    req_obj: Request,  # Inject Request object to get IP
     current_user: Optional[User] = Depends(get_current_user_optional),
     session: Session = Depends(get_session),
 ) -> AnalyzeResponse:
@@ -53,6 +54,17 @@ async def analyze_url(
                 detail="Daily scan quota reached. Upgrade your plan for more.",
             )
         # Increment scan counter
+    else:
+        # Check Guest Quota via IP
+        from ..core.rate_limiter import RateLimiter
+        limiter = RateLimiter()
+        client_ip = req_obj.client.host
+        if not limiter.is_allowed(client_ip):
+             raise HTTPException(
+                status_code=429,
+                detail="Guest scan limit reached (1/day). Please sign up for more scans.",
+            )
+
     today = date.today()
 
     # Determine allowed features based on plan
@@ -61,12 +73,7 @@ async def analyze_url(
     allowed_features = config.get("features", [])
 
     if current_user:
-        if not FeatureGuard.check_scan_quota(current_user):
-            raise HTTPException(
-                status_code=403,
-                detail="Daily scan quota reached. Upgrade your plan for more.",
-            )
-        # Increment scan counter
+        # Increment quota logic for logged in user
         if current_user.last_scan_date != today:
             current_user.scans_count_today = 1
             current_user.last_scan_date = today
@@ -178,48 +185,10 @@ async def analyze_stream(
 
 
 
-async def process_scan_background(task_id: str, url: str, lang: str):
-    """
-    Background worker for scan processing.
-    updates the task status in DB.
-    """
-    logger.info(f"Starting background scan for task {task_id}")
-    
-    # Create a new session for this background task
-    with Session(engine) as session:
-        task = session.get(ScanTask, task_id)
-        if not task:
-            logger.error(f"Task {task_id} not found")
-            return
-
-        task.status = AuditStatus.RUNNING
-        session.add(task)
-        session.commit()
-        
-        try:
-            # Run the heavy scan (Async)
-            # Note: We await it directly since we are in an async function
-            result = await process_url(url, lang)
-            
-            # Save result
-            task.result = result.model_dump(mode='json')
-            task.status = AuditStatus.COMPLETED
-            task.finished_at = datetime.utcnow()
-            logger.info(f"Task {task_id} completed successfully")
-            
-        except Exception as e:
-            logger.error(f"Task {task_id} failed: {e}")
-            task.error = str(e)
-            task.status = AuditStatus.FAILED
-        
-        session.add(task)
-        session.commit()
-
-
 @router.post("/analyze/async", response_model=TaskResponse)
 async def analyze_url_async(
     request: AnalyzeRequest,
-    background_tasks: BackgroundTasks,
+    req_obj: Request,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -251,8 +220,9 @@ async def analyze_url_async(
     session.add(task)
     session.commit()
     
-    # Enqueue Background Job
-    background_tasks.add_task(process_scan_background, task_id, url, request.lang)
+    # Enqueue Background Job via Celery
+    from ..worker import process_scan_task
+    process_scan_task.delay(task_id, url, request.lang)
     
     return TaskResponse(
         task_id=task_id,

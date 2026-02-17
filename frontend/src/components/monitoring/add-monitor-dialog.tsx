@@ -196,7 +196,7 @@ export function AddMonitorDialog({ onSuccess }: AddMonitorDialogProps) {
                     </div>
                 ) : (
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <form onSubmit={form.handleSubmit((data) => onSubmit(data as unknown as FormValues))} className="space-y-4">
                             <FormField
                                 control={form.control}
                                 name="url"

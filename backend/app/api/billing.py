@@ -27,52 +27,11 @@ async def create_checkout_session(
     """
     logger.info(f"Billing Checkout Request: {price_id} User: {user.email}")
     
-    mock_price_ids = {"price_pro_monthly", "price_agency_monthly", "free"}
-    
-    # ──────────────────────────────────────────────────────────
-    # MOCK CHECKOUT — DEVELOPMENT ONLY
-    # ⚠️  This block MUST remain behind the settings.debug guard.
-    #     Removing the guard allows free plan upgrades in production.
-    # ──────────────────────────────────────────────────────────
-    if price_id in mock_price_ids:
-        if not settings.debug:
-            logger.warning(f"BLOCKED mock checkout attempt in production: {price_id} by {user.email}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Mock checkout is disabled in production. Use a real Stripe price ID."
-            )
-        
-        logger.info(f"[DEV] MOCK CHECKOUT: processing {price_id} for user {user.email}")
-        
-        user_db = session.get(User, user.id)
-        if not user_db:
-             raise HTTPException(status_code=404, detail="User not found")
-
-        import uuid
-        
-        if price_id == "price_pro_monthly":
-            user_db.plan_tier = "pro"
-            user_db.subscription_active = True
-            user_db.stripe_customer_id = f"cus_mock_{user.id}"
-            user_db.stripe_subscription_id = f"sub_mock_{uuid.uuid4().hex[:8]}"
-        elif price_id == "price_agency_monthly":
-            user_db.plan_tier = "agency"
-            user_db.subscription_active = True
-            user_db.stripe_customer_id = f"cus_mock_{user.id}"
-            user_db.stripe_subscription_id = f"sub_mock_{uuid.uuid4().hex[:8]}"
-        elif price_id == "starter" or price_id == "free":
-            user_db.plan_tier = "starter"
-            user_db.subscription_active = True
-            
-        session.add(user_db)
-        session.commit()
-        session.refresh(user_db)
-        
-        origin = settings.cors_origins_list[0] if settings.cors_origins_list else "http://localhost:3000"
-        base_url = origin.rstrip("/")
-        redirect_url = f"{base_url}/dashboard/subscription?checkout_success=true"
-        logger.info(f"[DEV] Redirecting to: {redirect_url}")
-        return {"url": redirect_url}
+    # Mock logic removed for security. Use /api/billing/mock/checkout in dev.
+    if price_id in {"price_pro_monthly", "price_agency_monthly", "free"} and settings.debug:
+         # Optional: Redirect or inform dev user? 
+         # Strict approach: Just fail here, as this endpoint is for real production only.
+         pass
 
     # ──────────────────────────────────────────────────────────
     # REAL STRIPE CHECKOUT — Production path
@@ -101,9 +60,7 @@ async def create_portal_session(
     """
     base_url = settings.cors_origins_list[0] if settings.cors_origins_list else "http://localhost:3000"
 
-    # MOCK MODE: If user is on a mock subscription, don't hit Stripe
-    if user.stripe_customer_id and user.stripe_customer_id.startswith("cus_mock_"):
-        return {"url": f"{base_url}/dashboard?portal_mock=true"}
+    # Mock Portal logic removed. Use /api/billing/mock/portal in dev.
 
     return_url = f"{base_url}/dashboard"
     portal_url = await stripe_service.create_portal_session(user, return_url)
